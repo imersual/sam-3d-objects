@@ -1,4 +1,4 @@
-kaolin==0.17.0
+kaolin==0.18.0
 gsplat
 seaborn==0.13.2
 gradio==5.49.0
