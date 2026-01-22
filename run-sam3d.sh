@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# Activate mamba environment and run inference
 # Usage: ./run_sam3d.sh <task_dir> <image_path> <output_path>
 
 if [ "$#" -ne 3 ]; then
@@ -13,13 +12,15 @@ TASK_DIR="$1"
 IMAGE_PATH="$2"
 OUTPUT_PATH="$3"
 
-# Get the directory where this script is located
+# Directory of this script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Activate mamba environment
-eval "$(micromamba shell hook --shell bash)"
-micromamba activate "$SCRIPT_DIR"
+# Initialize mamba
+eval "$(mamba shell hook --shell bash)"
 
-# Run inference script
+# Activate the correct environment
+mamba activate sam3d-objects
+
+# Run inference
 cd "$SCRIPT_DIR"
 python run_inference.py "$TASK_DIR" "$IMAGE_PATH" "$OUTPUT_PATH"
