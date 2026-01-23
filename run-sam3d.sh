@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+export PATH="/opt/miniforge3/condabin:/opt/miniforge3/bin:/usr/local/bin:/usr/bin:/bin"
+
 # Usage: ./run_sam3d.sh <task_dir> <image_path> <output_path>
 
 if [ "$#" -ne 3 ]; then
