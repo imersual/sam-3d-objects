@@ -86,7 +86,7 @@ class Inference:
     def __init__(self, config_file: str, compile: bool = False):
         # load inference pipeline
         config = OmegaConf.load(config_file)
-        config.rendering_engine = "pytorch3d"  # overwrite to disable nvdiffrast
+        config.rendering_engine = "nvdiffrast"
         config.compile_model = compile
         config.workspace_dir = os.path.dirname(config_file)
         check_hydra_safety(config, WHITELIST_FILTERS, BLACKLIST_FILTERS)
@@ -112,9 +112,9 @@ class Inference:
             None,
             seed,
             stage1_only=False,
-            with_mesh_postprocess=True,
+            with_mesh_postprocess=False,
             with_texture_baking=True,
-            with_layout_postprocess=True,
+            with_layout_postprocess=False,
             use_vertex_color=False,
             stage1_inference_steps=None,
             pointmap=pointmap,

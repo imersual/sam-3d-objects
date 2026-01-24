@@ -15,7 +15,7 @@ output_path = sys.argv[3]
 
 # import inference code
 sys.path.append("notebook")
-from inference import Inference, load_image, load_mask, load_single_mask
+from inference import Inference, load_image, load_mask
 
 # load model
 tag = "hf"
@@ -35,7 +35,9 @@ mask = load_mask(mask_path)
 
 # run model
 print("Running SAM3D inference...")
-output = inference(image, mask, seed=42)
+output = inference(
+    image, mask, seed=42, with_mesh_postprocess=True, with_layout_postprocess=False
+)
 
 mesh = output["glb"]
 print(f"Exporting 3D model to: {output_path}")

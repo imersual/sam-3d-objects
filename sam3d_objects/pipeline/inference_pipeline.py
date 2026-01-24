@@ -89,7 +89,7 @@ class InferencePipeline:
         slat_rescale_t=3,
         slat_cfg_strength=5,
         slat_cfg_interval=[0, 500],
-        rendering_engine: str = "pytorch3d",  # nvdiffrast OR pytorch3d,
+        rendering_engine: str = "nvdiffrast",  # nvdiffrast OR pytorch3d,
         shape_model_dtype=None,
         compile_model=False,
         slat_mean=SLAT_MEAN,
