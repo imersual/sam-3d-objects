@@ -501,14 +501,33 @@ class InferencePipelinePointMap(InferencePipeline):
             glb = outputs.get("glb", None)
             gs_input = outputs.get("gaussian", None)
 
-            print(f"GBL: {glb}")
-            print(
+            logger.info(f"GS: {gs_input}")
+            logger.info(
+                f"layout_post_optimization_method_GS: {self.layout_post_optimization_method_GS}"
+            )
+
+            logger.info(f"GBL: {glb}")
+            logger.info(
                 f"layout post optimization method: {self.layout_post_optimization_method}"
             )
 
             try:
                 if with_layout_postprocess:
+
                     if (
+                        glb is not None
+                        and self.layout_post_optimization_method is not None
+                    ):
+                        logger.info("Running mesh layout post optimization method...")
+                        postprocessed_pose = self.run_post_optimization(
+                            deepcopy(glb),
+                            pointmap_dict["intrinsics"],
+                            ss_return_dict,
+                            ss_input_dict,
+                        )
+                        ss_return_dict.update(postprocessed_pose)
+                        logger.info("Finished mesh post-optimization!")
+                    elif (
                         gs_input is not None
                         and self.layout_post_optimization_method_GS is not None
                     ):
@@ -522,19 +541,6 @@ class InferencePipelinePointMap(InferencePipeline):
                         )
                         ss_return_dict.update(postprocessed_pose)
                         logger.info(f"Finished GS post-optimization!")
-                    elif (
-                        glb is not None
-                        and self.layout_post_optimization_method is not None
-                    ):
-                        logger.info("Running mesh layout post optimization method...")
-                        postprocessed_pose = self.run_post_optimization(
-                            deepcopy(glb),
-                            pointmap_dict["intrinsics"],
-                            ss_return_dict,
-                            ss_input_dict,
-                        )
-                        ss_return_dict.update(postprocessed_pose)
-                        logger.info("Finished mesh post-optimization!")
                     else:
                         logger.info(
                             "No post-optimization method available (no GS or mesh found)"
