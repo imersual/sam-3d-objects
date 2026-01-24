@@ -3,15 +3,15 @@ set -e
 
 export PATH="/opt/miniforge3/condabin:/opt/miniforge3/bin:/usr/local/bin:/usr/bin:/bin"
 
-# Usage: ./run_sam3d.sh <task_dir> <image_path> <output_path>
+# Usage: ./run_sam3d.sh <image_path> <mask_path> <output_path>
 
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <task_dir> <image_path> <output_path>"
+    echo "Usage: $0 <image_path> <mask_path> <output_path>"
     exit 1
 fi
 
-TASK_DIR="$1"
-IMAGE_PATH="$2"
+IMAGE_PATH="$1"
+MASK_PATH="$2"
 OUTPUT_PATH="$3"
 
 # Directory of this script
@@ -25,4 +25,4 @@ mamba activate sam3d-objects
 
 # Run inference
 cd "$SCRIPT_DIR"
-python run_inference.py "$TASK_DIR" "$IMAGE_PATH" "$OUTPUT_PATH"
+python run_inference.py "$IMAGE_PATH" "$MASK_PATH" "$OUTPUT_PATH"
