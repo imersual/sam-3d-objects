@@ -9,7 +9,6 @@ dependencies:
   - pytorch
   - torchvision
   - torchaudio
-  - pytorch-cuda=12.8
   - pip
   - setuptools
   - wheel
