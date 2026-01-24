@@ -14,7 +14,3 @@ dependencies:
   - wheel
   - ninja
   - pytorch3d
-  - pip:
-      - flash-attn
-      - git+https://github.com/NVlabs/nvdiffrast.git
-      - git+https://github.com/graphdeco-inria/diff-gaussian-rasterization.git
