@@ -20,5 +20,6 @@ mask = load_single_mask(
 output = inference(image, mask, seed=42)
 
 # export gaussian splat
-output["glb"].save_ply(f"splat.glb")
+mesh = output["glb"]
+mesh.export(f"splat.glb")
 print("Your reconstruction has been saved to splat.glb")
