@@ -36,7 +36,12 @@ mask = load_mask(mask_path)
 # run model
 print("Running SAM3D inference...")
 output = inference(
-    image, mask, seed=42, with_mesh_postprocess=True, with_layout_postprocess=True
+    image,
+    mask,
+    seed=42,
+    with_mesh_postprocess=True,
+    with_layout_postprocess=True,
+    rendering_engine="pytorch3d",  # nvdiffrast OR pytorch3d
 )
 
 mesh = output["glb"]

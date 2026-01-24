@@ -89,13 +89,11 @@ class InferencePipeline:
         slat_rescale_t=3,
         slat_cfg_strength=5,
         slat_cfg_interval=[0, 500],
-        rendering_engine: str = "pytorch3d",  # nvdiffrast OR pytorch3d,
         shape_model_dtype=None,
         compile_model=False,
         slat_mean=SLAT_MEAN,
         slat_std=SLAT_STD,
     ):
-        self.rendering_engine = rendering_engine
         self.device = torch.device(device)
         self.compile_model = compile_model
         logger.info(f"self.device: {self.device}")
@@ -488,6 +486,7 @@ class InferencePipeline:
         use_stage1_distillation=False,
         use_stage2_distillation=False,
         decode_formats=None,
+        rendering_engine: str = "pytorch3d",
     ) -> dict:
         """
         Parameters:
@@ -534,7 +533,11 @@ class InferencePipeline:
                 slat, self.decode_formats if decode_formats is None else decode_formats
             )
             outputs = self.postprocess_slat_output(
-                outputs, with_mesh_postprocess, with_texture_baking, use_vertex_color
+                outputs,
+                with_mesh_postprocess,
+                with_texture_baking,
+                use_vertex_color,
+                rendering_engine,
             )
             logger.info("Finished!")
 
@@ -544,7 +547,12 @@ class InferencePipeline:
             }
 
     def postprocess_slat_output(
-        self, outputs, with_mesh_postprocess, with_texture_baking, use_vertex_color
+        self,
+        outputs,
+        with_mesh_postprocess,
+        with_texture_baking,
+        use_vertex_color,
+        rendering_engine="pytorch3d",
     ):
         # GLB files can be extracted from the outputs
         logger.info(
@@ -561,7 +569,7 @@ class InferencePipeline:
                 with_mesh_postprocess=with_mesh_postprocess,
                 with_texture_baking=with_texture_baking,
                 use_vertex_color=use_vertex_color,
-                rendering_engine=self.rendering_engine,
+                rendering_engine=rendering_engine,
             )
 
         # glb.export("sample.glb")

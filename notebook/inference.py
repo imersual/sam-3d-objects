@@ -86,7 +86,6 @@ class Inference:
     def __init__(self, config_file: str, compile: bool = False):
         # load inference pipeline
         config = OmegaConf.load(config_file)
-        config.rendering_engine = "pytorch3d"
         config.compile_model = compile
         config.workspace_dir = os.path.dirname(config_file)
         check_hydra_safety(config, WHITELIST_FILTERS, BLACKLIST_FILTERS)
@@ -106,6 +105,7 @@ class Inference:
         seed: Optional[int] = None,
         with_mesh_postprocess: bool = True,
         with_layout_postprocess: bool = False,
+        rendering_engine: str = "pytorch3d",  # nvdiffrast OR pytorch3d
         pointmap=None,
     ) -> dict:
         image = self.merge_mask_to_rgba(image, mask)
@@ -120,6 +120,7 @@ class Inference:
             use_vertex_color=False,
             stage1_inference_steps=None,
             pointmap=pointmap,
+            rendering_engine=rendering_engine,
         )
 
 

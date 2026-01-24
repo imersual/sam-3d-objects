@@ -433,6 +433,7 @@ class InferencePipelinePointMap(InferencePipeline):
         pointmap=None,
         decode_formats=None,
         estimate_plane=False,
+        rendering_engine: str = "pytorch3d",
     ) -> dict:
         image = self.merge_image_and_mask(image, mask)
         with self.device:
@@ -496,7 +497,11 @@ class InferencePipelinePointMap(InferencePipeline):
                 slat, self.decode_formats if decode_formats is None else decode_formats
             )
             outputs = self.postprocess_slat_output(
-                outputs, with_mesh_postprocess, with_texture_baking, use_vertex_color
+                outputs,
+                with_mesh_postprocess,
+                with_texture_baking,
+                use_vertex_color,
+                rendering_engine,
             )
             glb = outputs.get("glb", None)
             gs_input = outputs.get("gaussian", None)
