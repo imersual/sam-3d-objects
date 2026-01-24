@@ -36,7 +36,7 @@ mask = load_mask(mask_path)
 # run model
 print("Running SAM3D inference...")
 output = inference(
-    image, mask, seed=42, with_mesh_postprocess=True, with_layout_postprocess=False
+    image, mask, seed=42, with_mesh_postprocess=True, with_layout_postprocess=True
 )
 
 mesh = output["glb"]
