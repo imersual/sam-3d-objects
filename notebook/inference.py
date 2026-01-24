@@ -36,7 +36,8 @@ from sam3d_objects.utils.visualization import SceneVisualizer
 __all__ = ["Inference"]
 
 WHITELIST_FILTERS = [
-    lambda target: target.split(".", 1)[0] in {"sam3d_objects", "torch", "torchvision", "moge"},
+    lambda target: target.split(".", 1)[0]
+    in {"sam3d_objects", "torch", "torchvision", "moge"},
 ]
 
 BLACKLIST_FILTERS = [
@@ -111,10 +112,10 @@ class Inference:
             None,
             seed,
             stage1_only=False,
-            with_mesh_postprocess=False,
-            with_texture_baking=False,
-            with_layout_postprocess=False,
-            use_vertex_color=True,
+            with_mesh_postprocess=True,
+            with_texture_baking=True,
+            with_layout_postprocess=True,
+            use_vertex_color=False,
             stage1_inference_steps=None,
             pointmap=pointmap,
         )
