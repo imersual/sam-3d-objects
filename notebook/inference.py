@@ -104,6 +104,8 @@ class Inference:
         image: Union[Image.Image, np.ndarray],
         mask: Optional[Union[None, Image.Image, np.ndarray]],
         seed: Optional[int] = None,
+        with_mesh_postprocess: bool = True,
+        with_layout_postprocess: bool = False,
         pointmap=None,
     ) -> dict:
         image = self.merge_mask_to_rgba(image, mask)
