@@ -138,8 +138,8 @@ def render(
             image_width=int(viewpoint_camera.image_width),
             tanfovx=tanfovx,
             tanfovy=tanfovy,
-            kernel_size=kernel_size,
-            subpixel_offset=subpixel_offset,
+            # kernel_size=kernel_size,
+            # subpixel_offset=subpixel_offset,
             bg=bg_color,
             scale_modifier=scaling_modifier,
             viewmatrix=viewpoint_camera.world_view_transform,
@@ -200,9 +200,11 @@ def render(
 
     # For gsplat backend, we can also return alpha channel if available
     result = edict({"render": rendered_image})
-    if backend == "gsplat" and 'render_alphas' in locals():
+    if backend == "gsplat" and "render_alphas" in locals():
         # Add alpha channel to create RGBA output
-        render_alpha = render_alphas.squeeze(0).permute(2, 0, 1)  # Convert to (C, H, W) format
+        render_alpha = render_alphas.squeeze(0).permute(
+            2, 0, 1
+        )  # Convert to (C, H, W) format
         result["alpha"] = render_alpha
         # Also provide RGBA combined format for convenience
         rgba_image = torch.cat([rendered_image, render_alpha], dim=0)  # (4, H, W)
