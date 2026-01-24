@@ -39,9 +39,9 @@ output = inference(
     image,
     mask,
     seed=42,
-    with_mesh_postprocess=True,
-    with_layout_postprocess=True,
-    rendering_engine="pytorch3d",  # nvdiffrast OR pytorch3d
+    with_mesh_postprocess=False,
+    with_layout_postprocess=False,
+    rendering_engine="nvdiffrast",  # nvdiffrast OR pytorch3d
 )
 
 mesh = output["glb"]
