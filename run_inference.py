@@ -41,7 +41,7 @@ output = inference(
     seed=42,
     with_mesh_postprocess=False,
     with_layout_postprocess=False,
-    rendering_engine="nvdiffrast",  # nvdiffrast OR pytorch3d
+    rendering_engine="pytorch3d",  # nvdiffrast OR pytorch3d
 )
 
 mesh = output["glb"]
