@@ -96,9 +96,12 @@ def render_frames(
                 rets["color"] = []
             if "depth" not in rets:
                 rets["depth"] = []
+            color_data = (
+                res["color"][0] if isinstance(res["color"], tuple) else res["color"]
+            )
             rets["color"].append(
                 np.clip(
-                    res["color"].detach().cpu().numpy().transpose(1, 2, 0) * 255, 0, 255
+                    color_data.detach().cpu().numpy().transpose(1, 2, 0) * 255, 0, 255
                 ).astype(np.uint8)
             )
             if "percent_depth" in res:
@@ -151,6 +154,7 @@ def render_gaussian_color_stay_in_device(
             rets["color"] = []
         rets["color"].append(color)
     return rets
+
 
 def render_video(
     sample,
