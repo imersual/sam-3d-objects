@@ -1,2 +1,4 @@
 pytorch3d
-flash_attn
+flash-attn
+git+https://github.com/NVlabs/nvdiffrast.git
+git+https://github.com/ashawkey/diff-gaussian-rasterization.git
