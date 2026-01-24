@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-* A linux 64-bits architecture (i.e. `linux-64` platform in `mamba info`).
-* A NVIDIA GPU with at least 32 Gb of VRAM.
+- A linux 64-bits architecture (i.e. `linux-64` platform in `mamba info`).
+- A NVIDIA GPU with at least 32 Gb of VRAM.
 
 ## 1. Setup Python Environment
 
@@ -15,14 +15,14 @@ mamba env create -f environments/default.yml
 mamba activate sam3d-objects
 
 # for pytorch/cuda dependencies
-export PIP_EXTRA_INDEX_URL="https://pypi.ngc.nvidia.com https://download.pytorch.org/whl/cu121"
+export PIP_EXTRA_INDEX_URL="https://pypi.ngc.nvidia.com https://download.pytorch.org/whl/cu128"
 
 # install sam3d-objects and core dependencies
 pip install -e '.[dev]'
 pip install -e '.[p3d]' # pytorch3d dependency on pytorch is broken, this 2-step approach solves it
 
 # for inference
-export PIP_FIND_LINKS="https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.5.1_cu121.html"
+export PIP_FIND_LINKS="https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.8.0_cu128.html"
 pip install -e '.[inference]'
 
 # patch things that aren't yet in official pip packages
@@ -54,5 +54,3 @@ hf download \
 mv checkpoints/${TAG}-download/checkpoints checkpoints/${TAG}
 rm -rf checkpoints/${TAG}-download
 ```
-
-

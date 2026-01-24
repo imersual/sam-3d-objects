@@ -71,7 +71,7 @@ scikit-image==0.23.1
 sentence-transformers==2.6.1
 simplejson==3.19.2
 smplx==0.1.28
-spconv-cu121==2.3.8
+spconv-cu128
 tensorboard==2.16.2
 timm==0.9.16
 tomli==2.0.1
