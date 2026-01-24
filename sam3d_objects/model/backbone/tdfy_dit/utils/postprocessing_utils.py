@@ -19,6 +19,7 @@ from ..renderers import GaussianRenderer
 from ..representations import Strivec, Gaussian, MeshExtractResult
 from loguru import logger
 
+
 @torch.no_grad()
 def _fill_holes(
     verts,
@@ -359,6 +360,7 @@ def parametrize_mesh(vertices: np.array, faces: np.array):
 
     return vertices, faces, uvs
 
+
 @torch.inference_mode(False)
 @torch.enable_grad()
 def bake_texture(
@@ -375,9 +377,8 @@ def bake_texture(
     mode: Literal["fast", "opt"] = "opt",
     lambda_tv: float = 1e-2,
     verbose: bool = False,
-    rendering_engine: str = "nvdiffrast",  # nvdiffrast OR "pytorch3d"
+    rendering_engine: str = "pytorch3d",  # nvdiffrast OR "pytorch3d"
     device: str = "cuda",
-
 ):
     """
     Bake texture to a mesh from multiple observations.
@@ -398,29 +399,34 @@ def bake_texture(
         verbose (bool): Whether to print progress.
     """
 
-
     vertices = torch.tensor(vertices).to(device)
     faces = torch.tensor(faces.astype(np.int32)).to(device)
     uvs = torch.tensor(uvs).to(device)
-    observations = [torch.tensor(obs / 255.0).float().to(device) for obs in observations]
+    observations = [
+        torch.tensor(obs / 255.0).float().to(device) for obs in observations
+    ]
     masks = [torch.tensor(m > 0).bool().to(device) for m in masks]
     views = [
         utils3d.torch.extrinsics_to_view(torch.tensor(extr).to(device))
         for extr in extrinsics
     ]
     projections = [
-        utils3d.torch.intrinsics_to_perspective(torch.tensor(intr).to(device), near, far)
+        utils3d.torch.intrinsics_to_perspective(
+            torch.tensor(intr).to(device), near, far
+        )
         for intr in intrinsics
     ]
 
     if mode == "fast":
-        texture = torch.zeros(
-            (texture_size * texture_size, 3), dtype=torch.float32
-        ).to(device)
+        texture = torch.zeros((texture_size * texture_size, 3), dtype=torch.float32).to(
+            device
+        )
         texture_weights = torch.zeros(
             (texture_size * texture_size), dtype=torch.float32
         ).to(device)
-        rastctx = utils3d.torch.RastContext(backend=device if device.startswith("cuda") else "cuda")
+        rastctx = utils3d.torch.RastContext(
+            backend=device if device.startswith("cuda") else "cuda"
+        )
         for observation, view, projection in tqdm(
             zip(observations, views, projections),
             total=len(observations),
@@ -470,7 +476,9 @@ def bake_texture(
         texture = cv2.inpaint(texture, mask, 3, cv2.INPAINT_TELEA)
 
     elif mode == "opt":
-        rastctx = utils3d.torch.RastContext(backend=device if device.startswith("cuda") else "cuda")
+        rastctx = utils3d.torch.RastContext(
+            backend=device if device.startswith("cuda") else "cuda"
+        )
         observations = [observations.flip(0) for observations in observations]
         masks = [m.flip(0) for m in masks]
         _uv = []
@@ -496,7 +504,9 @@ def bake_texture(
                 _uv_dr.append(rast["uv_dr"].detach())
 
         texture = torch.nn.Parameter(
-            torch.zeros((1, texture_size, texture_size, 3), dtype=torch.float32).to(device)
+            torch.zeros((1, texture_size, texture_size, 3), dtype=torch.float32).to(
+                device
+            )
         )
         optimizer = torch.optim.Adam([texture], betas=(0.5, 0.9), lr=1e-2)
 
@@ -513,34 +523,36 @@ def bake_texture(
                 texture[:, :-1, :, :], texture[:, 1:, :, :]
             ) + torch.nn.functional.l1_loss(texture[:, :, :-1, :], texture[:, :, 1:, :])
 
-
-
         def render_pt3d_texture(texture, uv, uv_dr=None):
             import torch.nn.functional as F
+
             texture_perm = texture.permute(0, 3, 1, 2)
             grid = uv * 2 - 1
             if grid.dim() == 3:
                 grid = grid.unsqueeze(0)  # (1, H, W, 2)
             elif grid.dim() == 4 and grid.shape[0] == 1:
-                pass  
+                pass
             elif grid.dim() == 4 and grid.shape[1] == 1:
                 grid = grid.squeeze(1)  # remove extra batch dimension if necessary
             else:
                 raise ValueError(f"Unexpected grid shape: {grid.shape}")
             render = F.grid_sample(
-                texture_perm, grid, mode='bilinear', padding_mode='border', align_corners=True
+                texture_perm,
+                grid,
+                mode="bilinear",
+                padding_mode="border",
+                align_corners=True,
             )
             render = render.permute(0, 2, 3, 1)[0]  # (H_out, W_out, 3)
             return render
-        
-        
+
         total_steps = 2500
-        
+
         with tqdm(
             total=total_steps,
             disable=not verbose,
             desc="Texture baking (opt): optimizing",
-            ) as pbar:
+        ) as pbar:
             for step in range(total_steps):
                 optimizer.zero_grad()
                 selected = np.random.randint(0, len(views))
@@ -550,14 +562,15 @@ def bake_texture(
                     observations[selected],
                     masks[selected],
                 )
-                
+
                 if rendering_engine == "nvdiffrast":
                     import nvdiffrast.torch as dr
+
                     render = dr.texture(texture, uv, uv_dr)[0]
 
                 if rendering_engine == "pytorch3d":
                     render = render_pt3d_texture(texture, uv)
-                    
+
                 loss = torch.nn.functional.l1_loss(render[mask], observation[mask])
                 if lambda_tv > 0:
                     loss += lambda_tv * tv_loss(texture)
@@ -566,7 +579,7 @@ def bake_texture(
                 # annealing
                 optimizer.param_groups[0]["lr"] = cosine_anealing(
                     optimizer, step, total_steps, 1e-2, 1e-5
-                    )
+                )
                 pbar.set_postfix({"loss": loss.item()})
                 pbar.update()
         texture = np.clip(
@@ -594,7 +607,7 @@ def to_glb(
     with_mesh_postprocess=True,
     with_texture_baking=True,
     use_vertex_color=False,
-    rendering_engine: str = "nvdiffrast",  # nvdiffrast OR "pytorch3d"
+    rendering_engine: str = "pytorch3d",  # nvdiffrast OR "pytorch3d"
 ) -> trimesh.Trimesh:
     """
     Convert a generated asset to a glb file.
@@ -653,7 +666,7 @@ def to_glb(
             mode="opt",
             lambda_tv=0.01,
             verbose=verbose,
-            rendering_engine=rendering_engine
+            rendering_engine=rendering_engine,
         )
         texture = Image.fromarray(texture)
         material = trimesh.visual.material.PBRMaterial(

@@ -20,6 +20,7 @@ def set_attention_backend():
         os.environ["ATTN_BACKEND"] = "flash_attn"
         os.environ["SPARSE_ATTN_BACKEND"] = "flash_attn"
 
+
 set_attention_backend()
 
 from typing import List, Union
@@ -88,7 +89,7 @@ class InferencePipeline:
         slat_rescale_t=3,
         slat_cfg_strength=5,
         slat_cfg_interval=[0, 500],
-        rendering_engine: str = "nvdiffrast",  # nvdiffrast OR pytorch3d,
+        rendering_engine: str = "pytorch3d",  # nvdiffrast OR pytorch3d,
         shape_model_dtype=None,
         compile_model=False,
         slat_mean=SLAT_MEAN,
@@ -98,7 +99,9 @@ class InferencePipeline:
         self.device = torch.device(device)
         self.compile_model = compile_model
         logger.info(f"self.device: {self.device}")
-        logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', None)}")
+        logger.info(
+            f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', None)}"
+        )
         logger.info(f"Actually using GPU: {torch.cuda.current_device()}")
         with self.device:
             self.decode_formats = decode_formats
@@ -122,14 +125,17 @@ class InferencePipeline:
             if shape_model_dtype is None:
                 self.shape_model_dtype = self.dtype
             else:
-                self.shape_model_dtype = self._get_dtype(shape_model_dtype) 
-
+                self.shape_model_dtype = self._get_dtype(shape_model_dtype)
 
             # Setup preprocessors
-            self.pose_decoder = self.init_pose_decoder(ss_generator_config_path, pose_decoder_name)
-            self.ss_preprocessor = self.init_ss_preprocessor(ss_preprocessor, ss_generator_config_path)
+            self.pose_decoder = self.init_pose_decoder(
+                ss_generator_config_path, pose_decoder_name
+            )
+            self.ss_preprocessor = self.init_ss_preprocessor(
+                ss_preprocessor, ss_generator_config_path
+            )
             self.slat_preprocessor = slat_preprocessor
-    
+
             logger.info("Loading model weights...")
 
             ss_generator = self.init_ss_generator(
@@ -266,7 +272,7 @@ class InferencePipeline:
         ckpt_path,
         state_dict_fn=None,
         state_dict_key="state_dict",
-        device="cuda", 
+        device="cuda",
     ):
         model = instantiate(config)
 
@@ -293,14 +299,18 @@ class InferencePipeline:
 
     def init_pose_decoder(self, ss_generator_config_path, pose_decoder_name):
         if pose_decoder_name is None:
-            pose_decoder_name = OmegaConf.load(os.path.join(self.workspace_dir, ss_generator_config_path))["module"]["pose_target_convention"]
+            pose_decoder_name = OmegaConf.load(
+                os.path.join(self.workspace_dir, ss_generator_config_path)
+            )["module"]["pose_target_convention"]
         logger.info(f"Using pose decoder: {pose_decoder_name}")
         return get_pose_decoder(pose_decoder_name)
 
     def init_ss_preprocessor(self, ss_preprocessor, ss_generator_config_path):
         if ss_preprocessor is not None:
             return ss_preprocessor
-        config = OmegaConf.load(os.path.join(self.workspace_dir, ss_generator_config_path))["tdfy"]["val_preprocessor"]
+        config = OmegaConf.load(
+            os.path.join(self.workspace_dir, ss_generator_config_path)
+        )["tdfy"]["val_preprocessor"]
         return instantiate(config)
 
     def init_ss_generator(self, ss_generator_config_path, ss_generator_ckpt_path):
@@ -416,7 +426,6 @@ class InferencePipeline:
             slat_generator_config_path, slat_generator_ckpt_path
         )
 
-
     def override_ss_generator_cfg_config(
         self,
         ss_generator,
@@ -465,7 +474,6 @@ class InferencePipeline:
             rescale_t,
         )
 
-
     def run(
         self,
         image: Union[None, Image.Image, np.ndarray],
@@ -507,7 +515,9 @@ class InferencePipeline:
 
             if "scale" in ss_return_dict:
                 logger.info(f"Rescaling scale by {ss_return_dict['downsample_factor']}")
-                ss_return_dict["scale"] = ss_return_dict["scale"] * ss_return_dict["downsample_factor"]
+                ss_return_dict["scale"] = (
+                    ss_return_dict["scale"] * ss_return_dict["downsample_factor"]
+                )
             if stage1_only:
                 logger.info("Finished!")
                 ss_return_dict["voxel"] = ss_return_dict["coords"][:, 1:] / 64 - 0.5
