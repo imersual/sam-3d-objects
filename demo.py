@@ -8,7 +8,7 @@ from inference import Inference, load_image, load_mask, load_single_mask
 # load model
 tag = "hf"
 config_path = f"checkpoints/{tag}/pipeline.yaml"
-inference = Inference(config_path, compile=True)
+inference = Inference(config_path, compile=False)
 
 # load image (RGBA only, mask is embedded in the alpha channel)
 image = load_image("notebook/images/sofa/sofa.jpeg")
