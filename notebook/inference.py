@@ -103,8 +103,10 @@ class Inference:
         image: Union[Image.Image, np.ndarray],
         mask: Optional[Union[None, Image.Image, np.ndarray]],
         seed: Optional[int] = None,
-        with_mesh_postprocess: bool = True,
+        with_mesh_postprocess: bool = False,
+        with_texture_baking: bool = False,
         with_layout_postprocess: bool = False,
+        use_vertex_color: bool = True,
         rendering_engine: str = "pytorch3d",  # nvdiffrast OR pytorch3d
         pointmap=None,
     ) -> dict:
@@ -115,9 +117,9 @@ class Inference:
             seed,
             stage1_only=False,
             with_mesh_postprocess=with_mesh_postprocess,
-            with_texture_baking=True,
+            with_texture_baking=with_texture_baking,
             with_layout_postprocess=with_layout_postprocess,
-            use_vertex_color=False,
+            use_vertex_color=use_vertex_color,
             stage1_inference_steps=None,
             pointmap=pointmap,
             rendering_engine=rendering_engine,
