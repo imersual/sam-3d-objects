@@ -16,6 +16,7 @@ output_path = sys.argv[3]
 # import inference code
 sys.path.append("notebook")
 from inference import Inference, load_image, load_mask
+import random
 
 # load model
 tag = "hf"
@@ -38,7 +39,7 @@ print("Running SAM3D inference...")
 output = inference(
     image,
     mask,
-    seed=1,
+    seed=random.randint(0, 2**32 - 1),
     with_mesh_postprocess=True,
     with_texture_baking=True,
     with_layout_postprocess=True,
