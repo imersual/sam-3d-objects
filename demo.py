@@ -12,7 +12,7 @@ inference = Inference(config_path, compile=False)
 
 # load image (RGBA only, mask is embedded in the alpha channel)
 image = load_image("notebook/images/sofa/sofa.jpeg")
-mask = load_mask("notebook/images/sofa/1.png")
+mask = load_single_mask("notebook/images/sofa", index=1)
 
 # run model
 output = inference(image, mask, seed=42)
