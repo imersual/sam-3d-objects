@@ -39,8 +39,9 @@ output = inference(
     image,
     mask,
     seed=42,
-    with_mesh_postprocess=False,
-    with_layout_postprocess=False,
+    with_mesh_postprocess=True,
+    with_texture_baking=True,
+    with_layout_postprocess=True,
     rendering_engine="pytorch3d",  # nvdiffrast OR pytorch3d
 )
 
