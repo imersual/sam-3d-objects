@@ -21,7 +21,7 @@ from inference import Inference, load_image, load_mask
 tag = "hf"
 config_path = f"checkpoints/{tag}/pipeline.yaml"
 print(f"Loading model from: {config_path}")
-inference = Inference(config_path, compile=True)
+inference = Inference(config_path, compile=False)
 
 # load image (RGBA only, mask is embedded in the alpha channel)
 print(f"Loading image: {image_path}")
