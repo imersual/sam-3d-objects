@@ -486,7 +486,7 @@ class InferencePipeline:
         use_stage1_distillation=False,
         use_stage2_distillation=False,
         decode_formats=None,
-        rendering_engine: str = "pytorch3d",
+        rendering_engine: str = "nvdiffrast",
     ) -> dict:
         """
         Parameters:
@@ -552,7 +552,7 @@ class InferencePipeline:
         with_mesh_postprocess,
         with_texture_baking,
         use_vertex_color,
-        rendering_engine="pytorch3d",
+        rendering_engine="nvdiffrast",  # nvdiffrast OR "pytorch3d"
     ):
         # GLB files can be extracted from the outputs
         logger.info(

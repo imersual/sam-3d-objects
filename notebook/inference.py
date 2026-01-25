@@ -107,7 +107,7 @@ class Inference:
         with_texture_baking: bool = False,
         with_layout_postprocess: bool = False,
         use_vertex_color: bool = True,
-        rendering_engine: str = "pytorch3d",  # nvdiffrast OR pytorch3d
+        rendering_engine: str = "nvdiffrast",  # nvdiffrast OR pytorch3d
         pointmap=None,
     ) -> dict:
         image = self.merge_mask_to_rgba(image, mask)

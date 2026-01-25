@@ -433,7 +433,7 @@ class InferencePipelinePointMap(InferencePipeline):
         pointmap=None,
         decode_formats=None,
         estimate_plane=False,
-        rendering_engine: str = "pytorch3d",
+        rendering_engine: str = "nvdiffrast",  # nvdiffrast OR "pytorch3d"
     ) -> dict:
         image = self.merge_image_and_mask(image, mask)
         with self.device:
