@@ -21,7 +21,7 @@ from inference import Inference, load_image, load_mask
 tag = "hf"
 config_path = f"checkpoints/{tag}/pipeline.yaml"
 print(f"Loading model from: {config_path}")
-inference = Inference(config_path, compile=False)
+inference = Inference(config_path, compile=True)
 
 # load image (RGBA only, mask is embedded in the alpha channel)
 print(f"Loading image: {image_path}")
@@ -38,7 +38,7 @@ print("Running SAM3D inference...")
 output = inference(
     image,
     mask,
-    seed=42,
+    seed=1,
     with_mesh_postprocess=True,
     with_texture_baking=True,
     with_layout_postprocess=True,
