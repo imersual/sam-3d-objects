@@ -42,7 +42,7 @@ output = inference(
     with_mesh_postprocess=True,
     with_texture_baking=True,
     with_layout_postprocess=True,
-    rendering_engine="pytorch3d",  # nvdiffrast OR pytorch3d
+    rendering_engine="nvdiffrast",  # nvdiffrast OR pytorch3d
 )
 
 mesh = output["glb"]
