@@ -188,7 +188,7 @@ def render_video(
         sample,
         extr,
         intr,
-        {"resolution": resolution, "bg_color": bg_color, "backend": "gsplat"},
+        {"resolution": resolution, "bg_color": bg_color},
         **kwargs,
     )
 

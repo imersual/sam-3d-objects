@@ -56,7 +56,7 @@ print("Rendering video...")
 
 scene_gs = ready_gaussian_for_video_rendering(scene_gs)
 
-print("Generating video as gif...")
+print("Generating video...")
 
 video = render_video(
     scene_gs,
