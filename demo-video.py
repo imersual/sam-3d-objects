@@ -68,7 +68,7 @@ imageio.mimsave(
     os.path.join(f"{IMAGE_NAME}.mp4"),
     video,
     fps=30,  # Use fps instead of duration for video formats
-    codec="libx264",  # Common H.264 codec
+    codec="libvpx-vp9",  # Common H.264 codec
 )
 
 print("Your rendering video has been saved to {IMAGE_NAME}.mp4")
