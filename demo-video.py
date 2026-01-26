@@ -75,7 +75,7 @@ imageio.mimsave(
     os.path.join(f"{IMAGE_NAME}.gif"),
     video,
     format="GIF",
-    duration=1000 / 30,  # default assuming 30fps from the input MP4
+    duration=1000 / 24,  # default assuming 30fps from the input MP4
     loop=0,  # 0 means loop indefinitely
 )
 
