@@ -72,11 +72,10 @@ print("Saving video as gif...")
 
 # save video as gif
 imageio.mimsave(
-    os.path.join(f"{IMAGE_NAME}.gif"),
+    os.path.join(f"{IMAGE_NAME}.mp4"),
     video,
-    format="GIF",
-    duration=1000 / 24,  # default assuming 30fps from the input MP4
-    loop=0,  # 0 means loop indefinitely
+    fps=24,  # Use fps instead of duration for video formats
+    codec="libx264",  # Common H.264 codec
 )
 
-print("Your rendering video has been saved to {IMAGE_NAME}.gif")
+print("Your rendering video has been saved to {IMAGE_NAME}.mp4")
