@@ -65,7 +65,7 @@ video = render_video(
     fov=60,
     pitch_deg=10,
     yaw_start_deg=0,
-    resolution=750,
+    resolution=800,
 )["color"]
 
 print("Saving video as gif...")
