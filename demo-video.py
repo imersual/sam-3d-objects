@@ -74,7 +74,7 @@ print("Saving video as gif...")
 imageio.mimsave(
     os.path.join(f"{IMAGE_NAME}.mp4"),
     video,
-    fps=24,  # Use fps instead of duration for video formats
+    fps=30,  # Use fps instead of duration for video formats
     codec="libx264",  # Common H.264 codec
 )
 
