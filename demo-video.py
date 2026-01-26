@@ -37,10 +37,10 @@ output = inference(
     image,
     mask,
     seed=1,
-    with_mesh_postprocess=False,
-    with_texture_baking=False,
-    with_layout_postprocess=False,
-    rendering_engine="pytorch3d",
+    with_mesh_postprocess=True,
+    with_texture_baking=True,
+    with_layout_postprocess=True,
+    rendering_engine="nvdiffrast",
 )
 
 # export gaussian splat
@@ -61,10 +61,9 @@ print("Generating video...")
 
 video = render_video(
     scene_gs,
-    r=1.5,
-    fov=60,
+    # r=1.5,
+    # fov=60,
     pitch_deg=10,
-    yaw_start_deg=0,
     resolution=800,
 )["color"]
 
