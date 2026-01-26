@@ -49,7 +49,7 @@ scene_gs = make_scene(output)
 
 # print("Rendering video...")
 
-# scene_gs = ready_gaussian_for_video_rendering(scene_gs)
+scene_gs = ready_gaussian_for_video_rendering(scene_gs)
 
 print("Generating video...")
 
