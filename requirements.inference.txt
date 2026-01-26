@@ -6,5 +6,3 @@ flash-attn
 seaborn==0.13.2
 gradio==5.49.0
 gsplat
-nvdiffrast @ git+https://github.com/NVlabs/nvdiffrast.git
-diff-gaussian-rasterization @ git+https://github.com/ashawkey/diff-gaussian-rasterization.git
