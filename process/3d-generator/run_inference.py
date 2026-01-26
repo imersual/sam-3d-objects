@@ -23,7 +23,7 @@ import random
 
 # load model
 tag = "hf"
-config_path = f"checkpoints/{tag}/pipeline.yaml"
+config_path = f"../../checkpoints/{tag}/pipeline.yaml"
 print(f"Loading model from: {config_path}")
 inference = Inference(config_path, compile=False)
 
