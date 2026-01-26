@@ -61,11 +61,11 @@ print("Generating video...")
 
 video = render_video(
     scene_gs,
-    r=1,
-    fov=80,
+    r=2,
+    fov=70,
     pitch_deg=10,
     yaw_start_deg=0,
-    resolution=1024,
+    resolution=750,
 )["color"]
 
 print("Saving video as gif...")
