@@ -14,4 +14,3 @@ dependencies:
   - pytorch
   - torchvision
   - torchaudio
-  - pytorch3d
