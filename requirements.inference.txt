@@ -1,5 +1,2 @@
-torch==2.8.0
-torchvision==0.23
-torchaudio==2.8.0+cu128
 seaborn==0.13.2
 gradio==5.49.0
