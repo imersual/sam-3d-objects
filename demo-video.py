@@ -83,4 +83,4 @@ print("Your rendering video has been saved to {IMAGE_NAME}.gif")
 # notebook display
 ImageDisplay(url=f"{IMAGE_NAME}.gif?cache_invalidator={uuid.uuid4()}")
 
-# interactive_visualizer(f"{IMAGE_NAME}.glb")
+interactive_visualizer(f"{IMAGE_NAME}.glb")
