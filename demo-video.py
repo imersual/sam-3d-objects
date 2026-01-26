@@ -49,8 +49,15 @@ mesh.export(f"splat.glb")
 
 print("Your reconstruction has been saved to splat.glb")
 
+print("Preparing scene for video rendering...")
+
 scene_gs = make_scene(output)
+
+print("Rendering video...")
+
 scene_gs = ready_gaussian_for_video_rendering(scene_gs)
+
+print("Saving video as gif...")
 
 video = render_video(
     scene_gs,
