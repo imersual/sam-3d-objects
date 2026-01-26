@@ -37,15 +37,14 @@ output = inference(
     image,
     mask,
     seed=1,
-    with_mesh_postprocess=True,
-    with_texture_baking=True,
-    with_layout_postprocess=True,
-    rendering_engine="nvdiffrast",
+    with_mesh_postprocess=False,
+    with_texture_baking=False,
+    with_layout_postprocess=False,
+    rendering_engine="pytorch3d",
 )
 
 # export gaussian splat
-mesh = output["glb"]
-mesh.export(f"splat.glb")
+output["gs"].save_ply(f"{IMAGE_NAME}.ply")
 
 print("Your reconstruction has been saved to splat.glb")
 
