@@ -1,7 +1,5 @@
 torch==2.8.0
 torchvision==0.23
 torchaudio==2.8.0+cu128
-kaolin==0.18.0
-flash-attn
 seaborn==0.13.2
 gradio==5.49.0
