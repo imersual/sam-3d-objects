@@ -5,4 +5,3 @@ kaolin==0.18.0
 flash-attn
 seaborn==0.13.2
 gradio==5.49.0
-gsplat
