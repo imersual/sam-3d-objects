@@ -43,19 +43,13 @@ output = inference(
     rendering_engine="nvdiffrast",
 )
 
-# export gaussian splat
-mesh = output["glb"]
-mesh.export(f"{IMAGE_NAME}.glb")
-
-print("Your reconstruction has been saved to splat.glb")
-
 print("Preparing scene for video rendering...")
 
 scene_gs = make_scene(output)
 
-print("Rendering video...")
+# print("Rendering video...")
 
-scene_gs = ready_gaussian_for_video_rendering(scene_gs)
+# scene_gs = ready_gaussian_for_video_rendering(scene_gs)
 
 print("Generating video...")
 
