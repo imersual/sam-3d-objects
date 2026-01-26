@@ -4,6 +4,9 @@ SAM3D inference with video output script
 Usage: python run_inference.py <task_dir> <image_path> <output_path>
 """
 import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "../..", "notebook")))
 
 if len(sys.argv) != 4:
     print("Usage: python run_inference.py <image_path> <mask_path> <output_path>")
