@@ -61,8 +61,8 @@ print("Generating video...")
 
 video = render_video(
     scene_gs,
-    r=2,
-    fov=70,
+    r=1.5,
+    fov=60,
     pitch_deg=10,
     yaw_start_deg=0,
     resolution=750,
