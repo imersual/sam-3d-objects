@@ -57,7 +57,7 @@ print("Rendering video...")
 
 scene_gs = ready_gaussian_for_video_rendering(scene_gs)
 
-print("Saving video as gif...")
+print("Generating video as gif...")
 
 video = render_video(
     scene_gs,
@@ -68,6 +68,8 @@ video = render_video(
     resolution=512,
 )["color"]
 
+print("Saving video as gif...")
+
 # save video as gif
 imageio.mimsave(
     os.path.join(f"{IMAGE_NAME}.gif"),
@@ -76,6 +78,8 @@ imageio.mimsave(
     duration=1000 / 30,  # default assuming 30fps from the input MP4
     loop=0,  # 0 means loop indefinitely
 )
+
+print("Your rendering video has been saved to {IMAGE_NAME}.gif")
 
 # notebook display
 ImageDisplay(url=f"{IMAGE_NAME}.gif?cache_invalidator={uuid.uuid4()}")
