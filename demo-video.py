@@ -37,9 +37,9 @@ output = inference(
     image,
     mask,
     seed=1,
-    with_mesh_postprocess=True,
-    with_texture_baking=True,
-    with_layout_postprocess=True,
+    with_mesh_postprocess=False,
+    with_texture_baking=False,
+    with_layout_postprocess=False,
     rendering_engine="nvdiffrast",
 )
 
@@ -71,10 +71,10 @@ print("Saving video as gif...")
 
 # save video as gif
 imageio.mimsave(
-    os.path.join(f"{IMAGE_NAME}.mp4"),
+    os.path.join(f"{IMAGE_NAME}2.mp4"),
     video,
     fps=30,  # Use fps instead of duration for video formats
     codec="libx264",  # Common H.264 codec
 )
 
-print("Your rendering video has been saved to {IMAGE_NAME}.mp4")
+print("Your rendering video has been saved to {IMAGE_NAME}2.mp4")
