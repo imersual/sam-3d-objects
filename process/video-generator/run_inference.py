@@ -15,8 +15,17 @@ output_path = sys.argv[3]
 
 # import inference code
 sys.path.append("notebook")
-from inference import Inference, load_image, load_mask
+import imageio
+from inference import (
+    Inference,
+    load_image,
+    load_mask,
+    ready_gaussian_for_video_rendering,
+    render_video,
+    make_scene,
+)
 import random
+import os
 
 # load model
 tag = "hf"
@@ -35,18 +44,36 @@ print(f"Loading mask: {mask_path}")
 mask = load_mask(mask_path)
 
 # run model
-print("Running SAM3D inference...")
+print("Running Video genration inference...")
 output = inference(
     image,
     mask,
     seed=random.randint(0, 2**32 - 1),
-    with_mesh_postprocess=True,
-    with_texture_baking=True,
-    with_layout_postprocess=True,
-    rendering_engine="nvdiffrast",  # nvdiffrast OR pytorch3d
+    with_mesh_postprocess=False,
+    with_texture_baking=False,
+    with_layout_postprocess=False,
+    rendering_engine="nvdiffrast",
 )
 
-mesh = output["glb"]
-print(f"Exporting 3D model to: {output_path}")
-mesh.export(output_path)
-print(f"✓ 3D model exported successfully to {output_path}")
+scene_gs = make_scene(output)
+
+scene_gs = ready_gaussian_for_video_rendering(scene_gs)
+
+print("Generating video...")
+
+video = render_video(
+    scene_gs,
+    pitch_deg=10,
+    resolution=800,
+)["color"]
+
+print("Saving video as webm...")
+
+imageio.mimsave(
+    os.path.join(f"{output_path}"),
+    video,
+    fps=30,
+    codec="libvpx-vp9",
+)
+
+print(f"Your rendering video has been saved to {output_path}")
