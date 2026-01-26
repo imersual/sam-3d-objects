@@ -4,13 +4,14 @@ channels:
   - nvidia
   - conda-forge
 dependencies:
+  - pip
+  - setuptools
+  - wheel
+  - cmake
+  - ninja
   - python=3.11
   - cuda-toolkit=12.8.1
   - pytorch
   - torchvision
   - torchaudio
-  - pip
-  - setuptools
-  - wheel
-  - ninja
   - pytorch3d
