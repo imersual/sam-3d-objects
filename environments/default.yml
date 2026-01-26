@@ -10,7 +10,7 @@ dependencies:
   - cmake
   - ninja
   - python=3.11
-  - cuda-toolkit=12.8
+  - cuda-toolkit=12.8.1
   - pytorch
   - torchvision
   - torchaudio
