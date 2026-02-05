@@ -26,4 +26,3 @@ files = ["requirements.txt"]
 
 [tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
 inference = ["requirements.inference.txt"]
-dev = ["requirements.dev.txt"]
