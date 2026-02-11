@@ -5,7 +5,7 @@ channels:
   - conda-forge
 dependencies:
   - pip
-  - setuptools
+  - setuptools<81
   - wheel
   - cmake
   - ninja
