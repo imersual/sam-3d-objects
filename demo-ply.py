@@ -19,14 +19,14 @@ output = inference(
     image,
     mask,
     seed=42,
-    with_mesh_postprocess=False,
+    with_mesh_postprocess=True,
     with_texture_baking=False,
-    with_layout_postprocess=False,
+    with_layout_postprocess=True,
     use_vertex_color=True,
     rendering_engine="nvdiffrast",
 )
 
 # export gaussian splat
 mesh = output["glb"]
-mesh.export("my_mesh.ply")
+mesh.export("splat.ply")
 print("Your reconstruction has been saved to splat.ply")
