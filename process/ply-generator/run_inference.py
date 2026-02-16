@@ -5,7 +5,6 @@ Usage: python run_inference.py <task_dir> <image_path> <output_path>
 """
 import sys
 import os
-from sam3d_objects.model.backbone.tdfy_dit.utils.postprocessing_utils import simplify_gs
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "../..", "notebook")))
 
@@ -20,6 +19,7 @@ output_path = sys.argv[3]
 # import inference code
 sys.path.append("notebook")
 from inference import Inference, load_image, load_mask
+from sam3d_objects.model.backbone.tdfy_dit.utils.postprocessing_utils import simplify_gs
 import random
 
 # load model
@@ -54,5 +54,5 @@ output = inference(
 print(f"Exporting PLY model to: {output_path}")
 
 output["gs"] = simplify_gs(output["gs"], simplify=0.95, verbose=True)
-output.export(output_path)
+output["gs"].save_ply(f"splat.ply")
 print(f"✓ PLY model exported successfully to {output_path}")
