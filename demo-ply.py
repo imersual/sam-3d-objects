@@ -27,5 +27,6 @@ output = inference(
 )
 
 # export gaussian splat
-output["gs"].save_ply(f"splat.ply")
+mesh = output["glb"]
+mesh.export("my_mesh.ply")
 print("Your reconstruction has been saved to splat.ply")
