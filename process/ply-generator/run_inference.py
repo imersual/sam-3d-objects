@@ -44,15 +44,15 @@ output = inference(
     image,
     mask,
     seed=random.randint(0, 2**32 - 1),
-    with_mesh_postprocess=True,
+    with_mesh_postprocess=False,
     with_texture_baking=False,
-    with_layout_postprocess=True,
+    with_layout_postprocess=False,
     use_vertex_color=True,
     rendering_engine="nvdiffrast",  # nvdiffrast OR pytorch3d
 )
 
 print(f"Exporting PLY model to: {output_path}")
 
-output["gs"] = simplify_gs(output["gs"], simplify=0.95, verbose=True)
+output["gs"] = simplify_gs(output["gs"], simplify=0.98, verbose=True)
 output["gs"].save_ply(output_path)
 print(f"✓ PLY model exported successfully to {output_path}")
