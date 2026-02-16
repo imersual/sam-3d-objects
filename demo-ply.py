@@ -18,10 +18,14 @@ mask = load_single_mask("notebook/images/sofa", index=1)
 output = inference(
     image,
     mask,
-    seed=1,
-    rendering_engine="pytorch3d",
+    seed=42,
+    with_mesh_postprocess=False,
+    with_texture_baking=False,
+    with_layout_postprocess=False,
+    use_vertex_color=True,
+    rendering_engine="nvdiffrast",
 )
 
 # export gaussian splat
 output["gs"].save_ply(f"splat.ply")
-print("Your reconstruction has been saved to splat.glb")
+print("Your reconstruction has been saved to splat.ply")
