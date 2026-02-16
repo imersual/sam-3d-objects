@@ -47,5 +47,5 @@ output = inference(
 )
 
 print(f"Exporting PLY model to: {output_path}")
-output["gs"].save_ply(f"splat.ply")
-print(f"✓ 3D model exported successfully to {output_path}")
+output["gs"].save_ply(output_path)
+print(f"✓ PLY model exported successfully to {output_path}")
