@@ -43,7 +43,10 @@ output = inference(
     image,
     mask,
     seed=random.randint(0, 2**32 - 1),
-    rendering_engine="pytorch3d",  # nvdiffrast OR pytorch3d
+    with_mesh_postprocess=False,
+    with_texture_baking=False,
+    with_layout_postprocess=True,
+    rendering_engine="nvdiffrast",  # nvdiffrast OR pytorch3d
 )
 
 print(f"Exporting PLY model to: {output_path}")
