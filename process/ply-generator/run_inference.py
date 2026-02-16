@@ -53,6 +53,6 @@ output = inference(
 
 print(f"Exporting PLY model to: {output_path}")
 
-output["gs"] = simplify_gs(output["gs"], simplify=0.98, verbose=True)
+output["gs"] = simplify_gs(output["gs"], simplify=0.99, verbose=True)
 output["gs"].save_ply(output_path)
 print(f"✓ PLY model exported successfully to {output_path}")
