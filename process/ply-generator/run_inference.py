@@ -43,7 +43,7 @@ output = inference(
     image,
     mask,
     seed=random.randint(0, 2**32 - 1),
-    with_mesh_postprocess=False,
+    with_mesh_postprocess=True,
     with_texture_baking=False,
     with_layout_postprocess=True,
     rendering_engine="nvdiffrast",  # nvdiffrast OR pytorch3d
