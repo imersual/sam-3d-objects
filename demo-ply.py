@@ -4,6 +4,7 @@ import sys
 # import inference code
 sys.path.append("notebook")
 from inference import Inference, load_image, load_mask, load_single_mask
+from prune_gaussians import prune_gaussians_by_opacity
 
 # load model
 tag = "hf"
@@ -19,12 +20,13 @@ output = inference(
     image,
     mask,
     seed=42,
-    with_mesh_postprocess=True,
-    with_texture_baking=False,
-    with_layout_postprocess=True,
-    use_vertex_color=True,
     rendering_engine="nvdiffrast",
 )
+
+# OPTIMIZE: Prune low-opacity Gaussians to reduce file size (typically 80-90% reduction)
+# Adjust opacity_threshold (0.05-0.2) to control quality vs file size
+# Higher threshold = smaller file but potentially lower quality
+prune_gaussians_by_opacity(output["gs"], opacity_threshold=0.1, verbose=True)
 
 # export gaussian splat
 output["gs"].save_ply(f"splat.ply")
