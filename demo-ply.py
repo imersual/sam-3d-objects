@@ -4,7 +4,9 @@ import sys
 # import inference code
 sys.path.append("notebook")
 from inference import Inference, load_image, load_mask, load_single_mask
-from prune_gaussians import prune_gaussians_by_opacity
+
+# Import the OFFICIAL optimization function from the repo
+from sam3d_objects.model.backbone.tdfy_dit.utils.postprocessing_utils import simplify_gs
 
 # load model
 tag = "hf"
@@ -23,11 +25,13 @@ output = inference(
     rendering_engine="nvdiffrast",
 )
 
-# OPTIMIZE: Prune low-opacity Gaussians to reduce file size (typically 80-90% reduction)
-# Adjust opacity_threshold (0.05-0.2) to control quality vs file size
-# Higher threshold = smaller file but potentially lower quality
-prune_gaussians_by_opacity(output["gs"], opacity_threshold=0.2, verbose=True)
+# OPTIMIZE using the official simplify_gs function from the repo
+# This reduces Gaussians while maintaining quality through optimization
+# simplify=0.95 means keep only 5% of Gaussians (remove 95%)
+# NOTE: This takes ~5-10 minutes as it renders from 100 views and optimizes
+print("\nOptimizing Gaussian splat (this may take several minutes)...")
+output["gs"] = simplify_gs(output["gs"], simplify=0.95, verbose=True)
 
 # export gaussian splat
 output["gs"].save_ply(f"splat.ply")
-print("Your reconstruction has been saved to splat.ply")
+print("Your optimized reconstruction has been saved to splat.ply")
