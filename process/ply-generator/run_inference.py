@@ -51,6 +51,6 @@ output = inference(
 )
 
 print(f"Exporting PLY model to: {output_path}")
-mesh = output["glb"]
+mesh = output["gs"]
 mesh.export(output_path)
 print(f"✓ PLY model exported successfully to {output_path}")
