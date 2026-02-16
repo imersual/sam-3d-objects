@@ -152,7 +152,7 @@ def render(
         rasterizer = GaussianRasterizer(raster_settings=raster_settings)
 
         # Rasterize visible Gaussians to image, obtain their radii (on screen).
-        rendered_image = rasterizer(
+        raster_output = rasterizer(
             means3D=means3D,
             means2D=means2D,
             shs=shs,
@@ -162,6 +162,11 @@ def render(
             rotations=rotations,
             cov3D_precomp=cov3D_precomp,
         )
+        # Handle tuple return (rendered_image, radii) from GaussianRasterizer
+        if isinstance(raster_output, tuple):
+            rendered_image = raster_output[0]
+        else:
+            rendered_image = raster_output
     elif backend == "gsplat":
         """
         See reference code to convert from gsplat to inria:
