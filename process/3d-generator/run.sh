@@ -15,7 +15,7 @@ OUTPUT_PATH="$3"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Initialize conda (works regardless of whether mamba is installed)
-source /opt/miniforge3/etc/profile.d/conda.sh
+source "${HOME}/conda/etc/profile.d/conda.sh"
 
 # Activate the correct environment
 conda activate sam3d-objects
