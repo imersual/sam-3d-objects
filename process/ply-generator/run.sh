@@ -17,11 +17,11 @@ OUTPUT_PATH="$3"
 # Directory of this script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Initialize mamba
-eval "$(mamba shell hook --shell bash)"
+# Initialize conda (works regardless of whether mamba is installed)
+source /opt/miniforge3/etc/profile.d/conda.sh
 
 # Activate the correct environment
-mamba activate sam3d-objects
+conda activate sam3d-objects
 
 # Run inference
 cd "$SCRIPT_DIR"
