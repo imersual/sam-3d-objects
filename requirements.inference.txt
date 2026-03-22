@@ -1,2 +1,4 @@
 seaborn==0.13.2
 gradio==5.49.0
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
