@@ -18,6 +18,10 @@ import random
 import logging
 from pathlib import Path
 
+# Reduce memory fragmentation. Must be set before torch is imported.
+# Can also be set via PYTORCH_CUDA_ALLOC_CONF env var in start_server.sh.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 # ── path setup (mirror run_inference.py) ────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.abspath(os.path.join(_HERE, "../.."))
@@ -32,6 +36,7 @@ from pydantic import BaseModel
 import uvicorn
 
 # ── SAM3D ────────────────────────────────────────────────────────────────────
+import torch
 from inference import Inference, load_image, load_mask
 
 # ── logging ──────────────────────────────────────────────────────────────────
@@ -53,6 +58,10 @@ args, _unknown = parser.parse_known_args()
 # ── model loading (happens ONCE at startup) ───────────────────────────────────
 config_path = os.path.join(_ROOT, "checkpoints", args.tag, "pipeline.yaml")
 log.info(f"Loading model from: {config_path}")
+log.info(f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', 'not set')}")
+if torch.cuda.is_available():
+    log.info(f"Using GPU: {torch.cuda.get_device_name(0)} | "
+             f"Total: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GiB")
 _inference = Inference(config_path, compile=False)
 log.info("Model loaded and ready.")
 
@@ -114,6 +123,9 @@ def infer(req: InferRequest):
     except Exception as exc:
         log.exception("Inference failed")
         raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        # Release fragmented reserved-but-unallocated memory back to CUDA.
+        torch.cuda.empty_cache()
 
     return {"output_path": str(output_path), "seed": seed}
 

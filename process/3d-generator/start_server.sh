@@ -13,6 +13,12 @@ set -e
 export PATH="/opt/miniforge3/condabin:/opt/miniforge3/bin:/usr/local/bin:/usr/bin:/bin"
 
 PORT="${1:-8000}"
+# Which GPU to use. Default=1 to avoid GPU 0 shared with other processes.
+# Set to 0,1 to use both GPUs, or 0 if you want GPU 0.
+GPU="${2:-1}"
+export CUDA_VISIBLE_DEVICES="$GPU"
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # ── conda init ────────────────────────────────────────────────────────────────
@@ -36,5 +42,5 @@ fi
 conda activate sam3d-objects
 
 cd "$SCRIPT_DIR"
-echo "Starting SAM3D server on port $PORT ..."
+echo "Starting SAM3D server on port $PORT (CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES) ..."
 python server.py --host 0.0.0.0 --port "$PORT"
