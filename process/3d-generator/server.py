@@ -37,6 +37,7 @@ import uvicorn
 
 # ── SAM3D ────────────────────────────────────────────────────────────────────
 import torch
+import numpy as np
 from inference import Inference, load_image, load_mask
 
 # ── logging ──────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ app = FastAPI(title="SAM3D Inference Server")
 
 class InferRequest(BaseModel):
     image_path: str
-    mask_path: str
+    mask_paths: list[str]
     output_path: str
     seed: int | None = None  # omit to use a random seed
 
@@ -88,10 +89,13 @@ def infer(req: InferRequest):
         raise HTTPException(
             status_code=400, detail=f"image_path not found: {req.image_path}"
         )
-    if not Path(req.mask_path).is_file():
-        raise HTTPException(
-            status_code=400, detail=f"mask_path not found: {req.mask_path}"
-        )
+    if not req.mask_paths:
+        raise HTTPException(status_code=400, detail="mask_paths must not be empty")
+    for mp in req.mask_paths:
+        if not Path(mp).is_file():
+            raise HTTPException(
+                status_code=400, detail=f"mask_path not found: {mp}"
+            )
 
     output_path = Path(req.output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,12 +103,15 @@ def infer(req: InferRequest):
     seed = req.seed if req.seed is not None else random.randint(0, 2**32 - 1)
 
     log.info(
-        f"Inference request | image={req.image_path} mask={req.mask_path} seed={seed}"
+        f"Inference request | image={req.image_path} masks={req.mask_paths} seed={seed}"
     )
 
     try:
         image = load_image(req.image_path)
-        mask = load_mask(req.mask_path)
+        masks = [load_mask(mp) for mp in req.mask_paths]
+        mask = masks[0].copy()
+        for m in masks[1:]:
+            mask |= m
 
         output = _inference(
             image,

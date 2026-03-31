@@ -3,14 +3,14 @@ set -e
 
 export PATH="/opt/miniforge3/condabin:/opt/miniforge3/bin:/usr/local/bin:/usr/bin:/bin"
 
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <image_path> <mask_path> <output_path>"
+if [ "$#" -lt 3 ]; then
+    echo "Usage: $0 <image_path> <mask_path1> [mask_path2 ...] <output_path>"
     exit 1
 fi
 
 IMAGE_PATH="$1"
-MASK_PATH="$2"
-OUTPUT_PATH="$3"
+OUTPUT_PATH="${@: -1}"
+MASK_PATHS=("${@:2:$(($#-2))}")
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -37,4 +37,4 @@ fi
 conda activate sam3d-objects
 
 cd "$SCRIPT_DIR"
-python run_inference.py "$IMAGE_PATH" "$MASK_PATH" "$OUTPUT_PATH"
+python run_inference.py "$IMAGE_PATH" "${MASK_PATHS[@]}" "$OUTPUT_PATH"
