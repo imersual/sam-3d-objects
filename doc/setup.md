@@ -16,14 +16,15 @@ mamba activate sam3d-objects
 
 # for pytorch/cuda dependencies
 export PIP_EXTRA_INDEX_URL="https://pypi.ngc.nvidia.com https://download.pytorch.org/whl/cu128"
-
-# install sam3d-objects and core dependencies
-pip install -e '.[dev]'
-pip install -e '.[p3d]' # pytorch3d dependency on pytorch is broken, this 2-step approach solves it
-
-# for inference
 export PIP_FIND_LINKS="https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.8.0_cu128.html"
+pip install torch==2.8.0 torchvision==0.23 torchaudio==2.8.0+cu128
 pip install -e '.[inference]'
+pip install flash-attn --no-build-isolation
+pip install "git+https://github.com/NVlabs/nvdiffrast.git" --no-build-isolation
+pip install "git+https://github.com/ashawkey/diff-gaussian-rasterization.git" --no-build-isolation
+pip install gsplat --no-build-isolation
+pip install kaolin==0.18.0
+pip install "git+https://github.com/facebookresearch/pytorch3d.git" --no-build-isolation
 
 # patch things that aren't yet in official pip packages
 ./patching/hydra # https://github.com/facebookresearch/hydra/pull/2863
