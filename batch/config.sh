@@ -38,4 +38,5 @@ export HF_HOME TRANSFORMERS_CACHE HF_HUB_CACHE
 : "${LOTUS_FAR:=1.5}"      # farthest depth in metres
 : "${DA3_CONF_PERCENTILE:=0}"  # discard bottom N% confidence pixels (0 = keep all)
 : "${SAM3D_SEED:=1}"
+: "${SAM3D_SKIP_EXISTING:=0}"  # 1 = keep existing splat_*.glb, only render missing ones
 : "${GPU:=0}"              # CUDA_VISIBLE_DEVICES

@@ -156,8 +156,10 @@ for NAME in "${SAMPLES[@]}"; do
             set -e
             conda activate "${ENV_SAM3D}"
             cd "${SAM3D_DIR}"
+            SKIP_FLAG=""
+            [ "${SAM3D_SKIP_EXISTING}" = "1" ] && SKIP_FLAG="--skip-existing"
             python "${SCRIPT_DIR}/batch_sam3d.py" \
-                --image "${IMG}" --mask "${MASK}" --out-dir "${OUT}" --seed "${SAM3D_SEED}"
+                --image "${IMG}" --mask "${MASK}" --out-dir "${OUT}" --seed "${SAM3D_SEED}" ${SKIP_FLAG}
         ) && { OK=$((OK+1)); log "  DONE ${NAME}"; } \
           || { FAIL=$((FAIL+1)); log "  [sam3d] FAILED ${NAME}"; }
     else
