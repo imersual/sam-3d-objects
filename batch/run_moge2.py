@@ -65,8 +65,12 @@ def main():
     depth = output["depth"].cpu().numpy().astype(np.float32)      # (H, W)
     mask = output["mask"].cpu().numpy().astype(bool)              # (H, W)
 
-    # Zero out invalid pixels (consistent with the other backends).
-    pointmap[~mask] = 0.0
+    # Mark invalid pixels NaN (NOT 0.0). SAM3D feeds the pointmap to
+    # recover_focal_shift with no mask and filters only by torch.isfinite, so
+    # finite zeros at masked-out (background) pixels would be treated as valid
+    # z=0 points and blow up the focal/shift solve ("Residuals are not finite").
+    # NaN is the convention SAM3D's built-in MoGe default already relies on.
+    pointmap[~mask] = np.nan
 
     intrinsics = output.get("intrinsics")
     intrinsics = (intrinsics.cpu().numpy().tolist()
