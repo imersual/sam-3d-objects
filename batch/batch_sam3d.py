@@ -14,7 +14,7 @@ under <out-dir>, plus the MoGe default (no pointmap):
 
 Usage
     python batch_sam3d.py --image input/images/foo/image.jpg \
-        --mask input/images/foo/mask.jpg --out-dir output/images/foo --seed 1
+        --mask input/images/foo/mask.png --out-dir output/images/foo --seed 1
 """
 
 import argparse

@@ -10,10 +10,10 @@ SAM3D pointmap, then runs SAM3D once per backend (plus the MoGe default).
 input/images/
   <name>/
     image.jpg        # the photo (jpg/jpeg/png)
-    mask.jpg         # binary segmentation mask of the object (you provide it)
+    mask.png         # binary segmentation mask of the object (you provide it)
   <name2>/
     image.jpg
-    mask.jpg
+    mask.png
 
 output/images/
   <name>/
@@ -78,5 +78,5 @@ python run_da3.py --image input/images/chair/image.jpg --out-dir output/images/c
 
 conda activate sam3d-objects
 python batch_sam3d.py --image input/images/chair/image.jpg \
-    --mask input/images/chair/mask.jpg --out-dir output/images/chair
+    --mask input/images/chair/mask.png --out-dir output/images/chair
 ```

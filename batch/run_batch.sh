@@ -2,7 +2,7 @@
 # =============================================================================
 # run_batch.sh - master orchestrator for the SAM3D depth-pipeline.
 #
-# For every image under  $INPUT_DIR/<name>/{image.*, mask.jpg}  it:
+# For every image under  $INPUT_DIR/<name>/{image.*, mask.png}  it:
 #   1. runs Lotus-2        (env: lotus2)   -> output/images/<name>/lotus2/pointmap.pt
 #   2. runs Depth Anything 3 (env: da3)    -> output/images/<name>/da3/pointmap.pt
 #   3. runs Depth Pro      (env: depthpro) -> output/images/<name>/depthpro/pointmap.pt
@@ -47,7 +47,7 @@ init_conda
 # --- helpers ----------------------------------------------------------------
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
-# Find the input image inside a sample folder (image.* but not mask.jpg).
+# Find the input image inside a sample folder (image.* but not mask.png).
 find_image() {
     local dir="$1"
     for ext in jpg jpeg png JPG JPEG PNG; do
@@ -89,8 +89,8 @@ for NAME in "${SAMPLES[@]}"; do
 
     if [ ! -d "${IN_DIR}" ]; then log "  missing input dir ${IN_DIR} -> skip"; FAIL=$((FAIL+1)); continue; fi
     IMG="$(find_image "${IN_DIR}")" || { log "  no image in ${IN_DIR} -> skip"; FAIL=$((FAIL+1)); continue; }
-    MASK="${IN_DIR}/mask.jpg"
-    if [ ! -f "${MASK}" ]; then log "  no mask.jpg in ${IN_DIR} -> skip"; FAIL=$((FAIL+1)); continue; fi
+    MASK="${IN_DIR}/mask.png"
+    if [ ! -f "${MASK}" ]; then log "  no mask.png in ${IN_DIR} -> skip"; FAIL=$((FAIL+1)); continue; fi
     IMG_STEM="$(basename "${IMG}")"; IMG_STEM="${IMG_STEM%.*}"
     mkdir -p "${OUT}"
     log "  image=${IMG}  mask=${MASK}"
