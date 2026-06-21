@@ -45,7 +45,7 @@ def main():
     ap.add_argument("--mask", required=True)
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--tag", default="hf", help="checkpoint subfolder")
-    ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--seed", type=int, default=4096)
     ap.add_argument(
         "--no-moge",
         action="store_true",
