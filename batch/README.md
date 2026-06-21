@@ -51,7 +51,9 @@ conda activate moge2
 pip install torch torchvision          # match your CUDA, like the other envs
 pip install pillow numpy
 pip install "git+https://github.com/microsoft/MoGe.git"   # pulls the new utils3d
-python -c "import utils3d.pt; from moge.model.v2 import MoGeModel; print('moge2 ok')"
+# note: utils3d.pt is a lazy alias for utils3d.torch, not a real submodule,
+# so test via `import utils3d` + attribute access (NOT `import utils3d.pt`):
+python -c "import utils3d; _ = utils3d.pt; from moge.model.v2 import MoGeModel; print('moge2 ok')"
 ```
 
 Paths and env names are configurable in [`config.sh`](config.sh).
