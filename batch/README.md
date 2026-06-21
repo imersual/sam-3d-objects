@@ -31,15 +31,28 @@ output/images/
 ## Prerequisites (on the remote box)
 
 The conda/mamba envs from the setup docs must exist, and the depth-model
-repos must be cloned. MoGe-2 needs no separate env — the `MoGe` package is
-already a dependency of `sam3d-objects` (SAM3D's default uses MoGe v1):
+repos must be cloned. MoGe-2 gets its own env: it needs a newer MoGe + utils3d
+than SAM3D pins (SAM3D uses utils3d's old `.numpy`/`.torch` API; MoGe-2 needs
+the new `.pt` API), so the two can't share an env:
 
-| env             | repo                          | provides                  |
-| --------------- | ----------------------------- | ------------------------- |
-| `sam3d-objects` | this repo                     | SAM3D + MoGe-2 + pointmap |
-| `lotus2`        | `/workspace/Lotus-2`          | `infer.py`                |
-| `da3`           | `/workspace/Depth-Anything-3` | `depth_anything_3`        |
-| `depthpro`      | `/workspace/ml-depth-pro`     | `depth_pro`               |
+| env             | repo                          | provides              |
+| --------------- | ----------------------------- | --------------------- |
+| `sam3d-objects` | this repo                     | SAM3D + pointmap conv |
+| `lotus2`        | `/workspace/Lotus-2`          | `infer.py`            |
+| `da3`           | `/workspace/Depth-Anything-3` | `depth_anything_3`    |
+| `depthpro`      | `/workspace/ml-depth-pro`     | `depth_pro`           |
+| `moge2`         | pip: microsoft/MoGe           | `moge.model.v2`       |
+
+Create the `moge2` env once:
+
+```bash
+conda create -n moge2 python=3.11 -y
+conda activate moge2
+pip install torch torchvision          # match your CUDA, like the other envs
+pip install pillow numpy
+pip install "git+https://github.com/microsoft/MoGe.git"   # pulls the new utils3d
+python -c "import utils3d.pt; from moge.model.v2 import MoGeModel; print('moge2 ok')"
+```
 
 Paths and env names are configurable in [`config.sh`](config.sh).
 
@@ -80,7 +93,7 @@ Each script is independently runnable in its env, e.g.:
 conda activate da3
 python run_da3.py --image input/images/chair/image.jpg --out-dir output/images/chair/da3
 
-conda activate sam3d-objects
+conda activate moge2
 python run_moge2.py --image input/images/chair/image.jpg --out-dir output/images/chair/moge2
 
 conda activate sam3d-objects

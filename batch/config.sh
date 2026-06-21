@@ -14,9 +14,9 @@
 : "${ENV_LOTUS:=lotus2}"
 : "${ENV_DA3:=da3}"
 : "${ENV_DEPTHPRO:=depthpro}"
-# MoGe-2 ships in the `MoGe` package that sam3d-objects already depends on,
-# so it runs in the SAM3D env -- no separate env needed.
-: "${ENV_MOGE2:=${ENV_SAM3D}}"
+# MoGe-2 needs a NEWER MoGe/utils3d than SAM3D pins (SAM3D uses utils3d's old
+# `.numpy`/`.torch` API; MoGe-2 needs the new `.pt` API), so it gets its own env.
+: "${ENV_MOGE2:=moge2}"
 
 # --- input / output ----------------------------------------------------------
 : "${INPUT_DIR:=${SAM3D_DIR}/input/images}"

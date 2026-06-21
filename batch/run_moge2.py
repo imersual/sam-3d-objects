@@ -2,12 +2,15 @@
 """
 run_moge2.py
 ============
-Parameterized MoGe-2 -> SAM3D pointmap (env: sam3d-objects).
+Parameterized MoGe-2 -> SAM3D pointmap (env: moge2).
 
 MoGe-2 (microsoft/MoGe v2) predicts a metric, camera-space point map directly,
-so no back-projection step is needed. The `MoGe` package is already a
-dependency of the sam3d-objects env (SAM3D's built-in default uses MoGe v1),
-so this runs in the same env -- no separate conda env required.
+so no back-projection step is needed.
+
+MoGe-2 needs a newer MoGe + utils3d than SAM3D pins (SAM3D uses utils3d's old
+`.numpy`/`.torch` API, MoGe-2 the new `.pt` API), so it runs in its OWN env
+(`moge2`), separate from sam3d-objects. The pointmap it writes is then consumed
+by SAM3D in the sam3d-objects env in the next stage.
 
 Writes the outputs SAM3D consumes:
 

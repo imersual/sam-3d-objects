@@ -6,7 +6,7 @@
 #   1. runs Lotus-2        (env: lotus2)   -> output/images/<name>/lotus2/pointmap.pt
 #   2. runs Depth Anything 3 (env: da3)    -> output/images/<name>/da3/pointmap.pt
 #   3. runs Depth Pro      (env: depthpro) -> output/images/<name>/depthpro/pointmap.pt
-#   4. runs MoGe-2         (env: sam3d)    -> output/images/<name>/moge2/pointmap.pt
+#   4. runs MoGe-2         (env: moge2)    -> output/images/<name>/moge2/pointmap.pt
 #   5. runs SAM3D          (env: sam3d)    -> output/images/<name>/splat_*.glb
 #                                             (one GLB per backend + MoGe v1 default)
 #
@@ -150,7 +150,7 @@ for NAME in "${SAMPLES[@]}"; do
         ) || log "  [depthpro] FAILED (continuing)"
     fi
 
-    # ---- 4. MoGe-2 (runs in the SAM3D env; outputs pointmap directly) -----
+    # ---- 4. MoGe-2 (own env; outputs metric pointmap directly) -----------
     if [ "${RUN_MOGE2}" = "1" ]; then
         log "  [moge2] depth inference + pointmap"
         (
