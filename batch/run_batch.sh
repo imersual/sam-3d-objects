@@ -6,8 +6,9 @@
 #   1. runs Lotus-2        (env: lotus2)   -> output/images/<name>/lotus2/pointmap.pt
 #   2. runs Depth Anything 3 (env: da3)    -> output/images/<name>/da3/pointmap.pt
 #   3. runs Depth Pro      (env: depthpro) -> output/images/<name>/depthpro/pointmap.pt
-#   4. runs SAM3D          (env: sam3d)    -> output/images/<name>/splat_*.glb
-#                                             (one GLB per backend + MoGe default)
+#   4. runs MoGe-2         (env: sam3d)    -> output/images/<name>/moge2/pointmap.pt
+#   5. runs SAM3D          (env: sam3d)    -> output/images/<name>/splat_*.glb
+#                                             (one GLB per backend + MoGe v1 default)
 #
 # Each depth model lives in its own conda env; we switch envs per stage.
 # A failure in one stage/image is logged and skipped; the batch continues.
@@ -149,7 +150,18 @@ for NAME in "${SAMPLES[@]}"; do
         ) || log "  [depthpro] FAILED (continuing)"
     fi
 
-    # ---- 4. SAM3D (one GLB per backend + MoGe default) -------------------
+    # ---- 4. MoGe-2 (runs in the SAM3D env; outputs pointmap directly) -----
+    if [ "${RUN_MOGE2}" = "1" ]; then
+        log "  [moge2] depth inference + pointmap"
+        (
+            set -e
+            conda activate "${ENV_MOGE2}"
+            python "${SCRIPT_DIR}/run_moge2.py" \
+                --image "${IMG}" --out-dir "${OUT}/moge2" --model "${MOGE2_MODEL}"
+        ) || log "  [moge2] FAILED (continuing)"
+    fi
+
+    # ---- 5. SAM3D (one GLB per backend + MoGe default) -------------------
     if [ "${RUN_SAM3D}" = "1" ]; then
         log "  [sam3d] reconstruction"
         (

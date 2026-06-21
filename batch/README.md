@@ -1,8 +1,8 @@
 # Batch depth → SAM3D pipeline
 
 Automates the full workflow for a folder of images: runs every depth backend
-(Lotus-2, Depth Anything 3, Depth Pro) in its own conda env, converts each to a
-SAM3D pointmap, then runs SAM3D once per backend (plus the MoGe default).
+(Lotus-2, Depth Anything 3, Depth Pro, MoGe-2) in its conda env, converts each
+to a SAM3D pointmap, then runs SAM3D once per backend (plus the MoGe v1 default).
 
 ## Folder layout
 
@@ -20,23 +20,26 @@ output/images/
     lotus2/    pointmap.pt, depth_metric.npy, ...
     da3/       pointmap.pt, depth.npy, intrinsics.npy, ...
     depthpro/  pointmap.pt, depth.npy, camera_params.json
-    splat_MoGe.glb               # SAM3D default (no pointmap)
+    moge2/     pointmap.pt, depth.npy, mask.npy, camera_params.json
+    splat_MoGe.glb               # SAM3D default (no pointmap; MoGe v1)
     splat_with_pt_lotus2.glb
     splat_with_pt_da3.glb
     splat_with_pt_depthpro.glb
+    splat_with_pt_moge2.glb
 ```
 
 ## Prerequisites (on the remote box)
 
-The four conda/mamba envs from the setup docs must exist, and the depth-model
-repos must be cloned:
+The conda/mamba envs from the setup docs must exist, and the depth-model
+repos must be cloned. MoGe-2 needs no separate env — the `MoGe` package is
+already a dependency of `sam3d-objects` (SAM3D's default uses MoGe v1):
 
-| env             | repo                          | provides              |
-| --------------- | ----------------------------- | --------------------- |
-| `sam3d-objects` | this repo                     | SAM3D + pointmap conv |
-| `lotus2`        | `/workspace/Lotus-2`          | `infer.py`            |
-| `da3`           | `/workspace/Depth-Anything-3` | `depth_anything_3`    |
-| `depthpro`      | `/workspace/ml-depth-pro`     | `depth_pro`           |
+| env             | repo                          | provides                  |
+| --------------- | ----------------------------- | ------------------------- |
+| `sam3d-objects` | this repo                     | SAM3D + MoGe-2 + pointmap |
+| `lotus2`        | `/workspace/Lotus-2`          | `infer.py`                |
+| `da3`           | `/workspace/Depth-Anything-3` | `depth_anything_3`        |
+| `depthpro`      | `/workspace/ml-depth-pro`     | `depth_pro`               |
 
 Paths and env names are configurable in [`config.sh`](config.sh).
 
@@ -64,7 +67,8 @@ stage or one image is logged and skipped — the batch keeps going.
   intrinsics, so these define the metric depth range. Defaults target
   product/food shots (`24°`, `0.2–1.5 m`). Use `70°`, `0.5–5.0 m` for rooms.
 - `DA3_CONF_PERCENTILE` — discard the bottom N% confidence pixels from DA3.
-- `RUN_LOTUS` / `RUN_DA3` / `RUN_DEPTHPRO` / `RUN_SAM3D` — toggle stages (`0`/`1`).
+- `MOGE2_MODEL` — MoGe-2 HF model id (default `Ruicheng/moge-2-vitl-normal`).
+- `RUN_LOTUS` / `RUN_DA3` / `RUN_DEPTHPRO` / `RUN_MOGE2` / `RUN_SAM3D` — toggle stages (`0`/`1`).
 - `GPU` — which GPU (`CUDA_VISIBLE_DEVICES`).
 - `SAM3D_SEED` — reconstruction seed.
 
@@ -75,6 +79,9 @@ Each script is independently runnable in its env, e.g.:
 ```bash
 conda activate da3
 python run_da3.py --image input/images/chair/image.jpg --out-dir output/images/chair/da3
+
+conda activate sam3d-objects
+python run_moge2.py --image input/images/chair/image.jpg --out-dir output/images/chair/moge2
 
 conda activate sam3d-objects
 python batch_sam3d.py --image input/images/chair/image.jpg \

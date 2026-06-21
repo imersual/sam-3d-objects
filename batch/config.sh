@@ -14,6 +14,9 @@
 : "${ENV_LOTUS:=lotus2}"
 : "${ENV_DA3:=da3}"
 : "${ENV_DEPTHPRO:=depthpro}"
+# MoGe-2 ships in the `MoGe` package that sam3d-objects already depends on,
+# so it runs in the SAM3D env -- no separate env needed.
+: "${ENV_MOGE2:=${ENV_SAM3D}}"
 
 # --- input / output ----------------------------------------------------------
 : "${INPUT_DIR:=${SAM3D_DIR}/input/images}"
@@ -29,6 +32,7 @@ export HF_HOME TRANSFORMERS_CACHE HF_HUB_CACHE
 : "${RUN_LOTUS:=1}"
 : "${RUN_DA3:=1}"
 : "${RUN_DEPTHPRO:=1}"
+: "${RUN_MOGE2:=1}"
 : "${RUN_SAM3D:=1}"
 
 # --- conversion parameters ---------------------------------------------------
@@ -37,6 +41,7 @@ export HF_HOME TRANSFORMERS_CACHE HF_HUB_CACHE
 : "${LOTUS_NEAR:=0.2}"     # closest depth in metres
 : "${LOTUS_FAR:=1.5}"      # farthest depth in metres
 : "${DA3_CONF_PERCENTILE:=0}"  # discard bottom N% confidence pixels (0 = keep all)
+: "${MOGE2_MODEL:=Ruicheng/moge-2-vitl-normal}"  # MoGe-2 HF model id
 : "${SAM3D_SEED:=1}"
 : "${SAM3D_SKIP_EXISTING:=0}"  # 1 = keep existing splat_*.glb, only render missing ones
 : "${GPU:=0}"              # CUDA_VISIBLE_DEVICES

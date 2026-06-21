@@ -7,10 +7,11 @@ Run SAM3D for one image once per available depth backend (env: sam3d-objects).
 Loads the SAM3D model ONCE, then produces one GLB per pointmap that exists
 under <out-dir>, plus the MoGe default (no pointmap):
 
-    <out-dir>/splat_MoGe.glb               (always, pointmap=None)
+    <out-dir>/splat_MoGe.glb               (always, pointmap=None; MoGe v1 default)
     <out-dir>/depthpro/pointmap.pt  -> <out-dir>/splat_with_pt_depthpro.glb
     <out-dir>/da3/pointmap.pt       -> <out-dir>/splat_with_pt_da3.glb
     <out-dir>/lotus2/pointmap.pt    -> <out-dir>/splat_with_pt_lotus2.glb
+    <out-dir>/moge2/pointmap.pt     -> <out-dir>/splat_with_pt_moge2.glb
 
 Usage
     python batch_sam3d.py --image input/images/foo/image.jpg \
@@ -34,6 +35,7 @@ BACKENDS = [
     ("depthpro", "depthpro/pointmap.pt", "splat_with_pt_depthpro.glb"),
     ("da3", "da3/pointmap.pt", "splat_with_pt_da3.glb"),
     ("lotus2", "lotus2/pointmap.pt", "splat_with_pt_lotus2.glb"),
+    ("moge2", "moge2/pointmap.pt", "splat_with_pt_moge2.glb"),
 ]
 
 
