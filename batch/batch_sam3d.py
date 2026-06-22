@@ -27,8 +27,32 @@ _ROOT = os.path.abspath(os.path.join(_HERE, ".."))
 sys.path.insert(0, os.path.join(_ROOT, "notebook"))
 sys.path.insert(0, _ROOT)
 
+import numpy as np
 import torch
+import torch.nn.functional as F
 from inference import Inference, load_image, load_mask
+
+
+def mask_pointmap(pointmap, mask):
+    """Set everything outside the object mask to NaN.
+
+    The depth backends emit a FULL-SCENE pointmap (object + background). SAM3D
+    infers the camera intrinsics / scene scale from every FINITE pixel of the
+    pointmap (it filters only by torch.isfinite, with no object mask), so leaving
+    the background finite makes the focal/shift solve fit the whole room instead
+    of the object -> wrong scale/placement. Restricting the pointmap to the
+    object (NaN elsewhere) is what ties the pointmap to mask.png.
+
+    pointmap: torch.Tensor (H, W, 3); mask: bool ndarray (Hm, Wm).
+    """
+    H, W = pointmap.shape[:2]
+    m = torch.from_numpy(np.ascontiguousarray(mask)).float()[None, None]
+    if m.shape[-2:] != (H, W):
+        m = F.interpolate(m, size=(H, W), mode="nearest")
+    keep = m[0, 0] > 0.5
+    pointmap = pointmap.clone()
+    pointmap[~keep] = float("nan")
+    return pointmap
 
 # backend key -> (pointmap path relative to out-dir, output glb name)
 BACKENDS = [
@@ -69,6 +93,18 @@ def main():
     image = load_image(args.image)
     mask = load_mask(args.mask)
 
+    # Sanity-check the mask: a mask that covers ~0% or ~100% of the frame means
+    # mask.png was misread (wrong channel / inverted / empty) and SAM3D will
+    # reconstruct nothing or the whole scene. Surface it instead of silently
+    # producing garbage.
+    coverage = float(mask.mean())
+    print(f"[sam3d] mask {args.mask}: {coverage:.1%} of pixels are object")
+    if coverage < 0.001 or coverage > 0.999:
+        print(
+            f"[sam3d] WARNING: mask coverage {coverage:.1%} looks wrong "
+            f"(empty or whole-image). Check mask.png format/polarity."
+        )
+
     # Build the run list: MoGe default + every backend whose pointmap exists.
     runs = []
     if not args.no_moge:
@@ -87,6 +123,8 @@ def main():
             continue
 
         pointmap = torch.load(pt_path) if pt_path else None
+        if pointmap is not None:
+            pointmap = mask_pointmap(pointmap, mask)
         print(
             f"[sam3d] running '{key}' (pointmap={'yes' if pointmap is not None else 'no'})"
         )

@@ -361,11 +361,29 @@ def load_image(path):
 
 
 def load_mask(path):
+    # Return a (H, W) bool mask from any common encoding:
+    #   - L / P (2D grayscale)          -> nonzero pixels
+    #   - RGBA / LA with a VARYING alpha -> alpha is the cutout (e.g. notebook
+    #                                       sample masks: object RGB on transparent bg)
+    #   - RGBA / LA with a CONSTANT alpha (fully opaque) -> alpha carries no
+    #     mask info, so the mask lives in the color channels instead. Blindly
+    #     taking the last channel here would mark the WHOLE image as object and
+    #     make SAM3D reconstruct the entire scene. Fall back to the color
+    #     channels (any non-black pixel) in that case.
+    #   - RGB (no alpha)                -> any non-black pixel
     mask = load_image(path)
-    mask = mask > 0
-    if mask.ndim == 3:
-        mask = mask[..., -1]
-    return mask
+    if mask.ndim == 2:
+        return mask > 0
+
+    n = mask.shape[-1]
+    if n in (2, 4):  # has an alpha channel (LA or RGBA)
+        alpha = mask[..., -1]
+        if alpha.min() != alpha.max():
+            return alpha > 0
+        color = mask[..., : n - 1]  # opaque alpha -> mask is in the color channels
+    else:
+        color = mask[..., :3]
+    return color.max(axis=-1) > 0
 
 
 def load_single_mask(folder_path, index=0, extension=".png"):

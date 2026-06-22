@@ -71,7 +71,10 @@ def depth_anything_to_pointmap(depth, intrinsics, extrinsics,
             threshold = np.percentile(conf_norm[valid], conf_percentile)
             valid &= conf_norm >= threshold
 
-    pointmap[~valid] = 0.0
+    # Mark invalid pixels NaN (NOT 0.0): SAM3D filters the pointmap only by
+    # torch.isfinite, so finite zeros would be treated as valid z=0 points and
+    # corrupt the focal/shift solve. Same convention as run_moge2.py.
+    pointmap[~valid] = np.nan
     return pointmap, valid, conf_norm
 
 
