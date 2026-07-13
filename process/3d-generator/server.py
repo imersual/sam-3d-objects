@@ -39,6 +39,7 @@ import uvicorn
 import torch
 import numpy as np
 from inference import Inference, load_image, load_mask
+from request_utils import normalize_views
 
 # ── logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -70,11 +71,19 @@ log.info("Model loaded and ready.")
 app = FastAPI(title="SAM3D Inference Server")
 
 
-class InferRequest(BaseModel):
+class ViewInput(BaseModel):
     image_path: str
     mask_paths: list[str]
+
+
+class InferRequest(BaseModel):
+    image_path: str | None = None
+    mask_paths: list[str] | None = None
     output_path: str
     seed: int | None = None  # omit to use a random seed
+    # Multiview: one entry per photo of the same object.
+    # Takes precedence over image_path/mask_paths when provided.
+    views: list[ViewInput] | None = None
 
 
 @app.get("/health")
@@ -85,43 +94,64 @@ def health():
 @app.post("/infer")
 def infer(req: InferRequest):
     # ── validate inputs ───────────────────────────────────────────────────────
-    if not Path(req.image_path).is_file():
-        raise HTTPException(
-            status_code=400, detail=f"image_path not found: {req.image_path}"
+    try:
+        view_specs = normalize_views(
+            req.image_path,
+            req.mask_paths,
+            [v.model_dump() for v in req.views] if req.views else None,
         )
-    if not req.mask_paths:
-        raise HTTPException(status_code=400, detail="mask_paths must not be empty")
-    for mp in req.mask_paths:
-        if not Path(mp).is_file():
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    for image_path, mask_paths in view_specs:
+        if not Path(image_path).is_file():
             raise HTTPException(
-                status_code=400, detail=f"mask_path not found: {mp}"
+                status_code=400, detail=f"image_path not found: {image_path}"
             )
+        for mp in mask_paths:
+            if not Path(mp).is_file():
+                raise HTTPException(
+                    status_code=400, detail=f"mask_path not found: {mp}"
+                )
 
     output_path = Path(req.output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     seed = req.seed if req.seed is not None else random.randint(0, 2**32 - 1)
 
-    log.info(
-        f"Inference request | image={req.image_path} masks={req.mask_paths} seed={seed}"
-    )
+    log.info(f"Inference request | views={len(view_specs)} seed={seed}")
 
     try:
-        image = load_image(req.image_path)
-        masks = [load_mask(mp) for mp in req.mask_paths]
-        mask = masks[0].copy()
-        for m in masks[1:]:
-            mask |= m
+        images, masks = [], []
+        for image_path, mask_paths in view_specs:
+            image = load_image(image_path)
+            view_masks = [load_mask(mp) for mp in mask_paths]
+            mask = view_masks[0].copy()
+            for m in view_masks[1:]:
+                mask |= m
+            images.append(image)
+            masks.append(mask)
 
-        output = _inference(
-            image,
-            mask,
-            seed=seed,
-            with_mesh_postprocess=True,
-            with_texture_baking=True,
-            with_layout_postprocess=True,
-            rendering_engine="nvdiffrast",
-        )
+        if len(view_specs) == 1:
+            output = _inference(
+                images[0],
+                masks[0],
+                seed=seed,
+                with_mesh_postprocess=True,
+                with_texture_baking=True,
+                with_layout_postprocess=True,
+                rendering_engine="nvdiffrast",
+            )
+        else:
+            # Layout postprocess is not supported in multi-view mode.
+            output = _inference.multi_view(
+                images,
+                masks,
+                seed=seed,
+                with_mesh_postprocess=True,
+                with_texture_baking=True,
+                rendering_engine="nvdiffrast",
+            )
 
         mesh = output["glb"]
         mesh.export(str(output_path))
@@ -134,7 +164,7 @@ def infer(req: InferRequest):
         # Release fragmented reserved-but-unallocated memory back to CUDA.
         torch.cuda.empty_cache()
 
-    return {"output_path": str(output_path), "seed": seed}
+    return {"output_path": str(output_path), "seed": seed, "views": len(view_specs)}
 
 
 # ── entrypoint ────────────────────────────────────────────────────────────────
