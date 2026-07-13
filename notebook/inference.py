@@ -131,6 +131,47 @@ class Inference:
             rendering_engine=rendering_engine,
         )
 
+    def multi_view(
+        self,
+        images: List[Union[Image.Image, np.ndarray]],
+        masks: List[Union[Image.Image, np.ndarray]],
+        seed: Optional[int] = None,
+        with_mesh_postprocess: bool = True,
+        with_texture_baking: bool = True,
+        use_vertex_color: bool = True,
+        rendering_engine: str = "nvdiffrast",  # nvdiffrast OR pytorch3d
+        stage1_inference_steps: Optional[int] = None,
+        stage2_inference_steps: Optional[int] = None,
+        decode_formats: Optional[List[str]] = None,
+        mode: str = "multidiffusion",
+    ) -> dict:
+        """Multi-view reconstruction: fuse several photos of one object.
+
+        Training-free multidiffusion (upstream PR #37): every diffusion step
+        averages the denoiser predictions across all view conditions.
+        Runtime scales roughly linearly with the number of views. Layout
+        postprocess is not supported in multi-view mode.
+        """
+        assert len(images) == len(masks), "one mask per image required"
+        assert len(images) >= 2, "multi_view needs at least 2 views"
+        rgba_images = [
+            self.merge_mask_to_rgba(np.array(image), np.array(mask) > 0)
+            for image, mask in zip(images, masks)
+        ]
+        return self._pipeline.run_multi_view(
+            view_images=rgba_images,
+            view_masks=None,
+            seed=seed,
+            stage1_inference_steps=stage1_inference_steps,
+            stage2_inference_steps=stage2_inference_steps,
+            decode_formats=decode_formats,
+            with_mesh_postprocess=with_mesh_postprocess,
+            with_texture_baking=with_texture_baking,
+            use_vertex_color=use_vertex_color,
+            mode=mode,
+            rendering_engine=rendering_engine,
+        )
+
 
 def _yaw_pitch_r_fov_to_extrinsics_intrinsics(yaws, pitchs, rs, fovs):
     is_list = isinstance(yaws, list)
