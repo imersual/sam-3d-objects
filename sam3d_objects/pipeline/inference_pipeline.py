@@ -23,7 +23,7 @@ def set_attention_backend():
 
 set_attention_backend()
 
-from typing import List, Union
+from typing import List, Literal, Optional, Union
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 import numpy as np
@@ -862,3 +862,340 @@ class InferencePipeline:
             return torch.float32
         else:
             raise NotImplementedError
+
+    # ------------------------------------------------------------------
+    # Multi-view inference (ported from upstream PR #37): training-free
+    # multidiffusion fusion — one shared latent, denoiser predictions
+    # averaged across all view conditions at every step. See
+    # sam3d_objects/pipeline/multi_view_utils.py for the fusion itself.
+    # ------------------------------------------------------------------
+
+    def get_multi_view_condition_input(
+        self, condition_embedder, view_input_dicts: List[dict], input_mapping
+    ):
+        """Embed each view's condition and stack the tokens.
+
+        Returns ``((stacked_conditions,), {})`` where ``stacked_conditions``
+        has shape (num_views, batch, tokens, dim) when the embedder returns
+        tensors, or is a list with one entry per view otherwise.
+        """
+        view_conditions = []
+        for view_input_dict in view_input_dicts:
+            condition_args = self.map_input_keys(view_input_dict, input_mapping)
+            condition_kwargs = {
+                k: v for k, v in view_input_dict.items() if k not in input_mapping
+            }
+            embedded_cond, _, _ = self.embed_condition(
+                condition_embedder, *condition_args, **condition_kwargs
+            )
+            if embedded_cond is not None:
+                view_conditions.append(embedded_cond)
+            else:
+                view_conditions.append(condition_args)
+
+        if isinstance(view_conditions[0], torch.Tensor):
+            all_conditions = torch.stack(view_conditions, dim=0)
+        else:
+            all_conditions = view_conditions
+
+        return (all_conditions,), {}
+
+    def sample_sparse_structure_multi_view(
+        self,
+        view_ss_input_dicts: List[dict],
+        inference_steps=None,
+        use_distillation=False,
+        mode: Literal["stochastic", "multidiffusion"] = "multidiffusion",
+    ):
+        """Stage 1 (sparse structure) sampling fused across views."""
+        from sam3d_objects.pipeline.multi_view_utils import (
+            inject_generator_multi_view,
+        )
+
+        ss_generator = self.models["ss_generator"]
+        ss_decoder = self.models["ss_decoder"]
+        num_views = len(view_ss_input_dicts)
+
+        if use_distillation:
+            ss_generator.no_shortcut = False
+            ss_generator.reverse_fn.strength = 0
+            ss_generator.reverse_fn.strength_pm = 0
+        else:
+            ss_generator.no_shortcut = True
+            ss_generator.reverse_fn.strength = self.ss_cfg_strength
+            ss_generator.reverse_fn.strength_pm = self.ss_cfg_strength_pm
+
+        prev_inference_steps = ss_generator.inference_steps
+        if inference_steps:
+            ss_generator.inference_steps = inference_steps
+
+        image = view_ss_input_dicts[0]["image"]
+        bs = image.shape[0]
+        logger.info(
+            f"Sampling sparse structure with {num_views} views: "
+            f"inference_steps={ss_generator.inference_steps}, mode={mode}"
+        )
+
+        with torch.no_grad():
+            with torch.autocast(device_type="cuda", dtype=self.shape_model_dtype):
+                if self.is_mm_dit():
+                    latent_shape_dict = {
+                        k: (bs,) + (v.pos_emb.shape[0], v.input_layer.in_features)
+                        for k, v in ss_generator.reverse_fn.backbone.latent_mapping.items()
+                    }
+                else:
+                    latent_shape_dict = (bs,) + (4096, 8)
+
+                condition_args, condition_kwargs = self.get_multi_view_condition_input(
+                    self.condition_embedders["ss_condition_embedder"],
+                    view_ss_input_dicts,
+                    self.ss_condition_input_mapping,
+                )
+
+                with inject_generator_multi_view(
+                    ss_generator,
+                    num_views=num_views,
+                    num_steps=ss_generator.inference_steps,
+                    mode=mode,
+                ):
+                    return_dict = ss_generator(
+                        latent_shape_dict,
+                        image.device,
+                        *condition_args,
+                        **condition_kwargs,
+                    )
+
+                if not self.is_mm_dit():
+                    return_dict = {"shape": return_dict}
+
+                shape_latent = return_dict["shape"]
+                ss = ss_decoder(
+                    shape_latent.permute(0, 2, 1)
+                    .contiguous()
+                    .view(shape_latent.shape[0], 8, 16, 16, 16)
+                )
+                coords = torch.argwhere(ss > 0)[:, [0, 2, 3, 4]].int()
+
+                # downsample output
+                return_dict["coords_original"] = coords
+                original_shape = coords.shape
+                if self.downsample_ss_dist > 0:
+                    coords = prune_sparse_structure(
+                        coords,
+                        max_neighbor_axes_dist=self.downsample_ss_dist,
+                    )
+                coords, downsample_factor = downsample_sparse_structure(coords)
+                logger.info(
+                    f"Downsampled coords from {original_shape[0]} to {coords.shape[0]}"
+                )
+                return_dict["coords"] = coords
+                return_dict["downsample_factor"] = downsample_factor
+
+        ss_generator.inference_steps = prev_inference_steps
+        return return_dict
+
+    def sample_slat_multi_view(
+        self,
+        view_slat_input_dicts: List[dict],
+        coords: torch.Tensor,
+        inference_steps=25,
+        use_distillation=False,
+        mode: Literal["stochastic", "multidiffusion"] = "multidiffusion",
+    ) -> sp.SparseTensor:
+        """Stage 2 (structured latent) sampling fused across views."""
+        from sam3d_objects.pipeline.multi_view_utils import (
+            inject_generator_multi_view,
+        )
+
+        image = view_slat_input_dicts[0]["image"]
+        DEVICE = image.device
+        slat_generator = self.models["slat_generator"]
+        num_views = len(view_slat_input_dicts)
+        latent_shape = (image.shape[0],) + (coords.shape[0], 8)
+        prev_inference_steps = slat_generator.inference_steps
+        if inference_steps:
+            slat_generator.inference_steps = inference_steps
+        if use_distillation:
+            slat_generator.no_shortcut = False
+            slat_generator.reverse_fn.strength = 0
+        else:
+            slat_generator.no_shortcut = True
+            slat_generator.reverse_fn.strength = self.slat_cfg_strength
+
+        logger.info(
+            f"Sampling sparse latent with {num_views} views: "
+            f"inference_steps={slat_generator.inference_steps}, mode={mode}"
+        )
+
+        with torch.autocast(device_type="cuda", dtype=self.dtype):
+            with torch.no_grad():
+                condition_args, condition_kwargs = self.get_multi_view_condition_input(
+                    self.condition_embedders["slat_condition_embedder"],
+                    view_slat_input_dicts,
+                    self.slat_condition_input_mapping,
+                )
+                condition_args += (coords.cpu().numpy(),)
+
+                with inject_generator_multi_view(
+                    slat_generator,
+                    num_views=num_views,
+                    num_steps=slat_generator.inference_steps,
+                    mode=mode,
+                ):
+                    slat = slat_generator(
+                        latent_shape, DEVICE, *condition_args, **condition_kwargs
+                    )
+
+                slat = sp.SparseTensor(
+                    coords=coords,
+                    feats=slat[0],
+                ).to(DEVICE)
+                slat = slat * self.slat_std.to(DEVICE) + self.slat_mean.to(DEVICE)
+
+        slat_generator.inference_steps = prev_inference_steps
+        return slat
+
+    def run_multi_view(
+        self,
+        view_images: List[Union[np.ndarray, Image.Image]],
+        view_masks: Optional[List[Union[None, np.ndarray, Image.Image]]] = None,
+        seed: Optional[int] = None,
+        stage1_inference_steps: Optional[int] = None,
+        stage2_inference_steps: Optional[int] = None,
+        use_stage1_distillation: bool = False,
+        use_stage2_distillation: bool = False,
+        decode_formats: Optional[List[str]] = None,
+        with_mesh_postprocess: bool = True,
+        with_texture_baking: bool = True,
+        use_vertex_color: bool = False,
+        stage1_only: bool = False,
+        mode: Literal["stochastic", "multidiffusion"] = "multidiffusion",
+        rendering_engine: str = "nvdiffrast",  # nvdiffrast OR pytorch3d
+    ) -> dict:
+        """Training-free multi-view reconstruction (multidiffusion fusion).
+
+        Each view is preprocessed independently; a single shared latent is
+        then denoised while every diffusion step averages the denoiser
+        predictions across all view conditions. Runtime scales roughly
+        linearly with the number of views.
+
+        Layout postprocess is not supported here: it aligns the object into
+        one view's scene frame, which is ambiguous with several views.
+
+        Args:
+            view_images: one image per view (RGB + mask, or RGBA if the
+                matching entry in view_masks is None).
+            view_masks: one bool/uint8 mask per view, or None per entry if
+                the image already carries the mask in its alpha channel.
+        """
+        num_views = len(view_images)
+        if view_masks is None:
+            view_masks = [None] * num_views
+        assert (
+            len(view_masks) == num_views
+        ), "Number of masks must match number of images"
+
+        if seed is not None:
+            torch.manual_seed(seed)
+
+        logger.info(
+            f"Running multi-view inference with {num_views} views, mode={mode}"
+        )
+        if num_views > 8:
+            logger.info(
+                f"Note: runtime scales roughly linearly with view count "
+                f"({num_views} views)."
+            )
+
+        view_ss_input_dicts = []
+        view_slat_input_dicts = []
+        for i, (image, mask) in enumerate(zip(view_images, view_masks)):
+            logger.info(f"Preprocessing view {i + 1}/{num_views}")
+
+            mask_uint8 = None
+            if mask is not None:
+                mask_uint8 = np.array(mask)
+                if mask_uint8.dtype == bool:
+                    mask_uint8 = mask_uint8.astype(np.uint8) * 255
+                elif mask_uint8.dtype != np.uint8:
+                    if mask_uint8.max() <= 1.0:
+                        mask_uint8 = (mask_uint8 * 255).astype(np.uint8)
+                    else:
+                        mask_uint8 = mask_uint8.astype(np.uint8)
+            # embeds the mask into the alpha channel; with mask=None the
+            # image must already be RGBA
+            rgba_image = self.merge_image_and_mask(image, mask_uint8)
+
+            if hasattr(self, "compute_pointmap"):
+                # Pointmap pipeline: each view gets an internally computed
+                # (MoGe) pointmap for stage-1 preprocessing. External
+                # per-view pointmaps are a planned follow-up.
+                pointmap_dict = self.compute_pointmap(rgba_image)
+                ss_input_dict = self.preprocess_image(
+                    rgba_image,
+                    self.ss_preprocessor,
+                    pointmap=pointmap_dict["pointmap"],
+                )
+                slat_input_dict = self.preprocess_image(
+                    rgba_image, self.slat_preprocessor
+                )
+            else:
+                ss_input_dict = self.preprocess_image(
+                    rgba_image, self.ss_preprocessor
+                )
+                slat_input_dict = self.preprocess_image(
+                    rgba_image, self.slat_preprocessor
+                )
+
+            view_ss_input_dicts.append(ss_input_dict)
+            view_slat_input_dicts.append(slat_input_dict)
+
+        logger.info("Stage 1: sampling sparse structure...")
+        ss_return_dict = self.sample_sparse_structure_multi_view(
+            view_ss_input_dicts,
+            inference_steps=stage1_inference_steps,
+            use_distillation=use_stage1_distillation,
+            mode=mode,
+        )
+
+        ss_return_dict.update(self.pose_decoder(ss_return_dict))
+
+        if "scale" in ss_return_dict:
+            logger.info(
+                f"Rescaling scale by {ss_return_dict['downsample_factor']}"
+            )
+            ss_return_dict["scale"] = (
+                ss_return_dict["scale"] * ss_return_dict["downsample_factor"]
+            )
+
+        if stage1_only:
+            logger.info("Finished!")
+            ss_return_dict["voxel"] = ss_return_dict["coords"][:, 1:] / 64 - 0.5
+            return ss_return_dict
+
+        coords = ss_return_dict["coords"]
+        logger.info("Stage 2: sampling structured latent...")
+        slat = self.sample_slat_multi_view(
+            view_slat_input_dicts,
+            coords,
+            inference_steps=stage2_inference_steps,
+            use_distillation=use_stage2_distillation,
+            mode=mode,
+        )
+
+        outputs = self.decode_slat(
+            slat, self.decode_formats if decode_formats is None else decode_formats
+        )
+        outputs = self.postprocess_slat_output(
+            outputs,
+            with_mesh_postprocess,
+            with_texture_baking,
+            use_vertex_color,
+            rendering_engine,
+        )
+        logger.info("Finished!")
+
+        return {
+            **ss_return_dict,
+            **outputs,
+        }
