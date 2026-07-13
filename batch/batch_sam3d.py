@@ -63,12 +63,55 @@ BACKENDS = [
 ]
 
 
+def check_mask_coverage(mask, label):
+    """Warn when a mask covers ~0% or ~100% of the frame (misread mask)."""
+    coverage = float(mask.mean())
+    print(f"[sam3d] mask {label}: {coverage:.1%} of pixels are object")
+    if coverage < 0.001 or coverage > 0.999:
+        print(
+            f"[sam3d] WARNING: mask coverage {coverage:.1%} looks wrong "
+            f"(empty or whole-image). Check the mask format/polarity."
+        )
+
+
+def run_multiview(inference, views_dir, out_dir, seed, skip_existing):
+    """Fuse all view pairs in views_dir into one splat_multiview.glb."""
+    from load_images_and_masks import load_images_and_masks_from_path
+
+    out_glb = os.path.join(out_dir, "splat_multiview.glb")
+    if skip_existing and os.path.exists(out_glb):
+        print(f"[sam3d] splat_multiview.glb exists -> skip")
+        return
+
+    images, masks, names = load_images_and_masks_from_path(views_dir)
+    if len(images) < 2:
+        print(
+            f"[sam3d] ERROR: multiview needs >=2 valid image/mask pairs, "
+            f"found {len(images)} ({names}) in {views_dir}"
+        )
+        sys.exit(1)
+
+    for name, mask in zip(names, masks):
+        check_mask_coverage(mask, f"view '{name}'")
+
+    print(f"[sam3d] running multiview fusion over {len(images)} views: {names}")
+    output = inference.multi_view(images, masks, seed=seed)
+    output["glb"].export(out_glb)
+    print(f"[sam3d] exported -> {out_glb}")
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--image", required=True)
-    ap.add_argument("--mask", required=True)
+    ap.add_argument("--image", default=None, help="single-view input image")
+    ap.add_argument("--mask", default=None, help="single-view input mask")
+    ap.add_argument(
+        "--views-dir",
+        default=None,
+        help="multiview: folder of <stem>.png + <stem>_mask.png pairs; "
+        "overrides --image/--mask",
+    )
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--tag", default="hf", help="checkpoint subfolder")
     ap.add_argument("--seed", type=int, default=4096)
@@ -84,26 +127,28 @@ def main():
     )
     args = ap.parse_args()
 
+    if args.views_dir is None and (args.image is None or args.mask is None):
+        ap.error("either --views-dir or both --image and --mask are required")
+
     os.makedirs(args.out_dir, exist_ok=True)
 
     config_path = os.path.join(_ROOT, "checkpoints", args.tag, "pipeline.yaml")
     print(f"[sam3d] loading model from {config_path}")
     inference = Inference(config_path, compile=False)
 
+    if args.views_dir:
+        run_multiview(
+            inference, args.views_dir, args.out_dir, args.seed, args.skip_existing
+        )
+        return
+
     image = load_image(args.image)
     mask = load_mask(args.mask)
 
-    # Sanity-check the mask: a mask that covers ~0% or ~100% of the frame means
-    # mask.png was misread (wrong channel / inverted / empty) and SAM3D will
-    # reconstruct nothing or the whole scene. Surface it instead of silently
+    # A mask covering ~0% or ~100% of the frame means mask.png was misread
+    # (wrong channel / inverted / empty) — surface it instead of silently
     # producing garbage.
-    coverage = float(mask.mean())
-    print(f"[sam3d] mask {args.mask}: {coverage:.1%} of pixels are object")
-    if coverage < 0.001 or coverage > 0.999:
-        print(
-            f"[sam3d] WARNING: mask coverage {coverage:.1%} looks wrong "
-            f"(empty or whole-image). Check mask.png format/polarity."
-        )
+    check_mask_coverage(mask, args.mask)
 
     # Build the run list: MoGe default + every backend whose pointmap exists.
     runs = []
