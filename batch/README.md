@@ -87,6 +87,43 @@ stage or one image is logged and skipped — the batch keeps going.
 - `GPU` — which GPU (`CUDA_VISIBLE_DEVICES`).
 - `SAM3D_SEED` — reconstruction seed.
 
+## Multiview (multiple photos of one object)
+
+Put **2 or more** view pairs in a sample folder instead of `image.jpg` + `mask.png`:
+
+```
+input/images/<object>/
+    1.png          # photo from viewpoint 1 (any stem works)
+    1_mask.png     # its mask (RGBA, mask in the alpha channel; alpha>0 = object)
+    2.png
+    2_mask.png
+    ...
+```
+
+`run_batch.sh` detects these folders automatically, **skips the depth
+backends** (each view gets an internal MoGe pointmap), and produces a single
+fused reconstruction:
+
+```
+output/images/<object>/splat_multiview.glb
+```
+
+Fusion is training-free multidiffusion (upstream PR #37): every diffusion
+step averages the model's predictions across all views, so occluded parts in
+one photo are filled in by the others. Runtime scales roughly linearly with
+the view count.
+
+Knobs (see `config.sh`): `SAM3D_MULTIVIEW=0` disables detection;
+`SAM3D_SEED` and `SAM3D_SKIP_EXISTING` work as in single-view mode.
+
+One-off runs without the batch harness:
+
+```bash
+conda activate sam3d-objects
+cd /workspace/sam-3d-objects
+python run_inference.py --input_path input/images/<object>
+```
+
 ## Running stages standalone
 
 Each script is independently runnable in its env, e.g.:
