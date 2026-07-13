@@ -628,12 +628,19 @@ def to_glb(
 
     if with_mesh_postprocess:
         # mesh postprocess
+        # fill_holes requires nvdiffrast; disable it under pytorch3d
+        effective_fill_holes = fill_holes and rendering_engine == "nvdiffrast"
+        if fill_holes and rendering_engine == "pytorch3d":
+            logger.warning(
+                "fill_holes is disabled because rendering_engine is "
+                "'pytorch3d' (requires nvdiffrast)"
+            )
         vertices, faces = postprocess_mesh(
             vertices,
             faces,
             simplify=simplify > 0,
             simplify_ratio=simplify,
-            fill_holes=fill_holes,
+            fill_holes=effective_fill_holes,
             fill_holes_max_hole_size=fill_holes_max_size,
             fill_holes_max_hole_nbe=int(250 * np.sqrt(1 - simplify)),
             fill_holes_resolution=1024,
