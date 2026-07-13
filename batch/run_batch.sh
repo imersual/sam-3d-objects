@@ -63,6 +63,19 @@ find_image() {
     return 1
 }
 
+# Count multiview pairs: <stem>_mask.png files with a matching <stem>.<img ext>.
+count_view_pairs() {
+    local dir="$1" count=0 m stem ext
+    for m in "${dir}"/*_mask.png; do
+        [ -f "$m" ] || continue
+        stem="$(basename "$m" _mask.png)"
+        for ext in png jpg jpeg PNG JPG JPEG; do
+            if [ -f "${dir}/${stem}.${ext}" ]; then count=$((count+1)); break; fi
+        done
+    done
+    echo "$count"
+}
+
 # --- collect samples --------------------------------------------------------
 if [ "$#" -gt 0 ]; then
     SAMPLES=("$@")
@@ -89,6 +102,32 @@ for NAME in "${SAMPLES[@]}"; do
     log "==================== ${NAME} ===================="
 
     if [ ! -d "${IN_DIR}" ]; then log "  missing input dir ${IN_DIR} -> skip"; FAIL=$((FAIL+1)); continue; fi
+
+    # ---- multiview: >=2 view pairs -> fuse all views, skip depth backends --
+    if [ "${SAM3D_MULTIVIEW}" = "1" ]; then
+        PAIRS="$(count_view_pairs "${IN_DIR}")"
+        if [ "${PAIRS}" -ge 2 ]; then
+            log "  multiview folder (${PAIRS} view pairs) -> skipping depth backends"
+            mkdir -p "${OUT}"
+            if [ "${RUN_SAM3D}" = "1" ]; then
+                (
+                    set -e
+                    conda activate "${ENV_SAM3D}"
+                    cd "${SAM3D_DIR}"
+                    SKIP_FLAG=""
+                    [ "${SAM3D_SKIP_EXISTING}" = "1" ] && SKIP_FLAG="--skip-existing"
+                    python "${SCRIPT_DIR}/batch_sam3d.py" \
+                        --views-dir "${IN_DIR}" --out-dir "${OUT}" \
+                        --seed "${SAM3D_SEED}" ${SKIP_FLAG}
+                ) && { OK=$((OK+1)); log "  DONE ${NAME} (multiview)"; } \
+                  || { FAIL=$((FAIL+1)); log "  [sam3d] FAILED ${NAME} (multiview)"; }
+            else
+                OK=$((OK+1))
+            fi
+            continue
+        fi
+    fi
+
     IMG="$(find_image "${IN_DIR}")" || { log "  no image in ${IN_DIR} -> skip"; FAIL=$((FAIL+1)); continue; }
     MASK="${IN_DIR}/mask.png"
     if [ ! -f "${MASK}" ]; then log "  no mask.png in ${IN_DIR} -> skip"; FAIL=$((FAIL+1)); continue; fi

@@ -44,4 +44,5 @@ export HF_HOME TRANSFORMERS_CACHE HF_HUB_CACHE
 : "${MOGE2_MODEL:=Ruicheng/moge-2-vitl-normal}"  # MoGe-2 HF model id
 : "${SAM3D_SEED:=1}"
 : "${SAM3D_SKIP_EXISTING:=0}"  # 1 = keep existing splat_*.glb, only render missing ones
+: "${SAM3D_MULTIVIEW:=1}"  # 1 = folders with >=2 <stem>+<stem>_mask.png pairs run multiview fusion
 : "${GPU:=0}"              # CUDA_VISIBLE_DEVICES
