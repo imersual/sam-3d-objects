@@ -594,7 +594,17 @@ git commit -m "feat: set MoGe-2 as SAM3D depth model and prefetch its weights"
 
 ---
 
-### Task 5: Update the repo's reference pipeline.yaml
+### Task 5: Update the repo's reference pipeline.yaml — DROPPED during execution
+
+> **DROPPED (2026-07-23).** This task assumed `checkpoints/pipeline.yaml` was a
+> tracked reference file. It is not: `checkpoints/.gitignore` is `*` / `!.gitignore`,
+> deliberately excluding all of `checkpoints/` from git because `pipeline.yaml` ships
+> from the HuggingFace repo `facebook/sam-3d-objects` and is downloaded, not committed.
+> Force-committing it would fight that convention, and the file is read by nothing
+> (production loads `checkpoints/hf/pipeline.yaml`). The v2-default statement is already
+> carried by tracked code — `scripts/set_depth_model.py`'s `DEPTH_MODELS["moge2"]` — and
+> applied to the downloaded file at setup time. The steps below are left for the record
+> but were not committed.
 
 **Files:**
 - Modify: `checkpoints/pipeline.yaml:61-65`
