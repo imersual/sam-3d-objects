@@ -502,10 +502,12 @@ utils3d is pinned explicitly, not left transitive: MoGe declares it as a bare gi
 The install-and-verify commands belong in `setup-gpu-server.sh` (Task 4), so the
 operator runs one script. Nothing to execute in this task.
 
-For reference, the gate Task 4 installs is: 19 passed, 0 skipped. Any skip means
-MoGe or utils3d did not install. If a `utils3d.torch.*` assertion fails, that is
-the drift risk the spec flags — it changes the approach rather than being a small
-fix, so report it rather than patching around it.
+For reference, the gate Task 4 installs enforces **0 skipped** (the exact pass count
+is not asserted, since the guard grew to 24 cases once `depth_to_points` and the
+`utils3d.numpy` surface were added). Any skip means MoGe or utils3d did not install.
+If a `utils3d.torch.*` assertion fails, that is the drift risk the spec flags — it
+changes the approach rather than being a small fix, so report it rather than patching
+around it.
 
 - [ ] **Step 5: Commit**
 

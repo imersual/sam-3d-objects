@@ -151,10 +151,14 @@ flip the config in either direction without re-downloading the checkpoint.
 `mv checkpoints/${TAG}-download/checkpoints checkpoints/${TAG}` line, honouring a
 `SAM3D_DEPTH_MODEL` variable that defaults to `moge2`.
 
-The repo's reference copy at `checkpoints/pipeline.yaml` is updated to match, so
-it does not contradict production. Nothing loads that file directly — both
-`server.py` and `run_inference.py` read the tag subdirectory — but leaving it
-showing v1 would mislead.
+Nothing loads `checkpoints/pipeline.yaml` directly — both `server.py` and
+`run_inference.py` read the tag subdirectory. (Design-time note: an earlier draft
+proposed committing an updated reference copy of this file. That was dropped during
+implementation — `checkpoints/.gitignore` is `*` / `!.gitignore`, so the whole
+directory's contents are deliberately untracked; the file ships from the
+`facebook/sam-3d-objects` HuggingFace repo and is downloaded, then overridden by the
+script above. The tracked source of truth for the v2 default is
+`scripts/set_depth_model.py`'s `DEPTH_MODELS["moge2"]`.)
 
 ### 4. Weight pre-fetch
 
