@@ -136,11 +136,16 @@ New script `scripts/set_depth_model.py`, rewriting three fields in a given tag's
 
 Usage: `python scripts/set_depth_model.py --tag hf --variant moge2`
 
-The script uses PyYAML, already an installed dependency. This is preferred over
-`yq`, which is not installed on the GPU box, and over `sed`, which is brittle
-against a vendor-controlled file. The script is idempotent and writes explicit
-values for both variants, so it can flip the config in either direction without
-re-downloading the checkpoint.
+The script uses OmegaConf, which is explicitly listed in `requirements.txt` and is
+already how `Inference.__init__` reads this very file. PyYAML is only a transitive
+dependency of OmegaConf, so depending on it directly would be relying on something
+the project never declares. OmegaConf is also preferred over `yq`, which is not
+installed on the GPU box, and over `sed`, which is brittle against a
+vendor-controlled file. `pipeline.yaml` contains no `${...}` interpolations, so a
+load/save round-trip is lossless in every way that matters to the consumer.
+
+The script is idempotent and writes explicit values for both variants, so it can
+flip the config in either direction without re-downloading the checkpoint.
 
 `setup-gpu-server.sh` calls it immediately after the
 `mv checkpoints/${TAG}-download/checkpoints checkpoints/${TAG}` line, honouring a
