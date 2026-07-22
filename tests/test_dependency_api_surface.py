@@ -23,6 +23,7 @@ UTILS3D_TORCH_FUNCTIONS = [
     "extrinsics_to_view",
     "intrinsics_to_perspective",
     "intrinsics_from_focal_center",
+    "depth_to_points",
 ]
 
 
@@ -31,8 +32,18 @@ def test_utils3d_torch_surface(name):
     assert hasattr(utils3d.torch, name), f"utils3d.torch.{name} is missing"
 
 
-def test_utils3d_numpy_depth_edge():
-    assert hasattr(utils3d.numpy, "depth_edge")
+UTILS3D_NUMPY_FUNCTIONS = [
+    "depth_edge",
+    "normals_edge",
+    "points_to_normals",
+    "image_uv",
+    "image_mesh",
+]
+
+
+@pytest.mark.parametrize("name", UTILS3D_NUMPY_FUNCTIONS)
+def test_utils3d_numpy_surface(name):
+    assert hasattr(utils3d.numpy, name), f"utils3d.numpy.{name} is missing"
 
 
 def test_utils3d_io_write_ply():
