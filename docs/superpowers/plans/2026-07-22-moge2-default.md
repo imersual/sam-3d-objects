@@ -21,6 +21,22 @@
 - `sam3d_objects/pipeline/depth_models/` has no `__init__.py` and does not need one; it resolves as a PEP 420 namespace package. Do not add one.
 - No MoGe v1 vs v2 comparison runs. Rollback exists as a safety net, not an evaluation workflow.
 
+## Execution Amendment (2026-07-22)
+
+The development machine is Windows with Python 3.11 and **pytest only** — `torch`,
+`omegaconf`, `moge` and `utils3d` are all absent, and installing them here is out
+of scope. This changes how the TDD steps execute:
+
+- **Tests are written but not run during implementation.** Every "Run test to
+  verify it fails / passes" step is deferred. An implementer must report its
+  tests as `UNRUN (deps unavailable locally)` and must **never** fabricate or
+  guess pytest output. A task is complete when the code and tests are written and
+  committed, not when tests are green.
+- **All GPU-box commands live in `setup-gpu-server.sh`.** The operator runs that
+  one script rather than copying commands by hand. Task 3's install-and-verify
+  step and the test-suite run therefore move into Task 4's script edit, and
+  Task 6 reduces to running the script plus an optional smoke test.
+
 ---
 
 ### Task 1: MoGe2 depth model wrapper
@@ -100,10 +116,11 @@ def test_extra_v2_keys_pass_through():
     assert "normal" in output and "mask" in output
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Do not run the test locally**
 
-Run: `python -m pytest tests/test_moge2_depth_model.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'sam3d_objects.pipeline.depth_models.moge2'`
+`torch` is absent on the dev machine, so `pytest.importorskip("torch")` would skip
+the file and prove nothing. Report `UNRUN (deps unavailable locally)`. These tests
+run on the GPU box via `setup-gpu-server.sh`.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -130,10 +147,11 @@ class MoGe2(DepthModel):
         return output
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Confirm the code is written, not that tests pass**
 
-Run: `python -m pytest tests/test_moge2_depth_model.py -v`
-Expected: PASS — 4 passed
+Do not run pytest and do not claim a result. Re-read `moge2.py` against the four
+tests and confirm by inspection that each would pass. Report `UNRUN (deps
+unavailable locally)`.
 
 - [ ] **Step 5: Commit**
 
@@ -247,10 +265,10 @@ def test_main_exits_when_file_missing(tmp_path):
         main(["--tag", "nope", "--checkpoints-root", str(tmp_path)])
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Do not run the test locally**
 
-Run: `python -m pytest tests/test_set_depth_model.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'set_depth_model'`
+`omegaconf` is absent on the dev machine, so this file would fail at collection
+rather than fail meaningfully. Report `UNRUN (deps unavailable locally)`.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -350,10 +368,12 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Confirm the code is written, not that tests pass**
 
-Run: `python -m pytest tests/test_set_depth_model.py -v`
-Expected: PASS — 7 passed
+Do not run pytest and do not claim a result. Re-read `set_depth_model.py` against
+the seven tests and confirm by inspection that each would pass — in particular
+that `main()` accepts an `argv` list, and that a missing file raises `SystemExit`.
+Report `UNRUN (deps unavailable locally)`.
 
 - [ ] **Step 5: Commit**
 
@@ -454,10 +474,11 @@ def test_moge_internal_helpers_importable():
     )
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Do not run the test locally**
 
-Run: `python -m pytest tests/test_dependency_api_surface.py -v`
-Expected: On a machine with the OLD pins installed, `test_moge_v2_importable` FAILS with `ModuleNotFoundError: No module named 'moge.model.v2'`. On a machine with neither installed, every test SKIPS — that is not a pass; the real gate is Step 4 on the GPU box.
+`utils3d` and `moge` are absent on the dev machine, so every test here would skip
+and prove nothing. Report `UNRUN (deps unavailable locally)`. The real gate is
+`setup-gpu-server.sh`, which runs this file after `pip install` (Task 4).
 
 - [ ] **Step 3: Update the dependency pins**
 
@@ -476,18 +497,15 @@ utils3d @ git+https://github.com/EasternJournalist/utils3d.git@3fab839f0be9931da
 
 utils3d is pinned explicitly, not left transitive: MoGe declares it as a bare git URL, and pip does not install a git dependency's own `requirements.txt` unless it appears in `install_requires`.
 
-- [ ] **Step 4: Reinstall and verify on the GPU box**
+- [ ] **Step 4: Verification is wired into setup, not run here**
 
-```bash
-mamba activate sam3d-objects
-cd /workspace/sam-3d-objects
-pip install -e '.[inference]'
-python -m pytest tests/test_dependency_api_surface.py -v
-```
+The install-and-verify commands belong in `setup-gpu-server.sh` (Task 4), so the
+operator runs one script. Nothing to execute in this task.
 
-Expected: PASS — 19 passed, 0 skipped. Any skip means MoGe or utils3d did not install; fix that before continuing.
-
-If a `utils3d.torch.*` assertion fails, stop and report which function — that is the drift risk the spec flags, and it changes the approach rather than being a small fix.
+For reference, the gate Task 4 installs is: 19 passed, 0 skipped. Any skip means
+MoGe or utils3d did not install. If a `utils3d.torch.*` assertion fails, that is
+the drift risk the spec flags — it changes the approach rather than being a small
+fix, so report it rather than patching around it.
 
 - [ ] **Step 5: Commit**
 
@@ -547,8 +565,19 @@ python scripts/set_depth_model.py --tag "${TAG}" --variant "${SAM3D_DEPTH_MODEL:
 echo "[+] Pre-fetching MoGe-2 weights"
 hf download Ruicheng/moge-2-vitl-normal
 
+# Verify the MoGe/utils3d pin bump did not break the API surface SAM3D calls.
+# These tests cannot run on the Windows dev machine (no torch/utils3d), so this
+# is their first real execution. A skip here means a dependency did not install.
+echo "[+] Verifying dependency API surface and depth model wrapper"
+python -m pytest tests/test_dependency_api_surface.py tests/test_moge2_depth_model.py \
+    tests/test_set_depth_model.py -v
+
 cd "$WORKDIR"
 ```
+
+The `pytest` line is deliberately not guarded with `|| true`: if the pin bump broke
+`utils3d.torch.rasterize_triangle_faces` or a MoGe internal helper, setup must fail
+loudly rather than leave a server that dies at first inference.
 
 - [ ] **Step 2: Verify the script still parses**
 
@@ -598,23 +627,19 @@ depth_model:
     pretrained_model_name_or_path: Ruicheng/moge-2-vitl-normal
 ```
 
-- [ ] **Step 2: Verify it matches what the script writes**
+- [ ] **Step 2: Verify by inspection that it matches what the script writes**
 
-Run:
+`omegaconf` is unavailable locally, so compare the two by eye. Open
+`scripts/set_depth_model.py` and confirm all three strings under
+`DEPTH_MODELS["moge2"]` are character-identical to what you just wrote into
+`checkpoints/pipeline.yaml`:
 
-```bash
-python -c "
-import sys; sys.path.insert(0, 'scripts')
-from omegaconf import OmegaConf
-from set_depth_model import DEPTH_MODELS
-actual = OmegaConf.load('checkpoints/pipeline.yaml').depth_model
-expected = OmegaConf.create(DEPTH_MODELS['moge2'])
-assert actual == expected, f'mismatch:\n{actual}\n{expected}'
-print('reference yaml matches set_depth_model moge2')
-"
-```
+- `sam3d_objects.pipeline.depth_models.moge2.MoGe2`
+- `moge.model.v2.MoGeModel.from_pretrained`
+- `Ruicheng/moge-2-vitl-normal`
 
-Expected: `reference yaml matches set_depth_model moge2`
+A mismatch here is silent: the reference yaml and the deployed config would
+disagree with nobody noticing. Check each string, do not skim.
 
 - [ ] **Step 3: Commit**
 
@@ -634,25 +659,24 @@ git commit -m "docs: point reference pipeline.yaml at MoGe-2"
 
 Per the spec there is no v1-versus-v2 comparison. This task confirms MoGe-2 loads and produces valid geometry.
 
-- [ ] **Step 1: Pull both repos and reinstall**
+This task is run by the operator on the box, not by an implementer subagent.
+
+- [ ] **Step 1: Pull both repos and run setup**
 
 ```bash
 cd /workspace/sam-3d-objects && git pull
 cd /workspace/gpu-server-scripts && git pull
-mamba activate sam3d-objects
-cd /workspace/sam-3d-objects && pip install -e '.[inference]'
+./setup-gpu-server.sh
 ```
 
-- [ ] **Step 2: Run the full non-GPU test suite**
+`setup-gpu-server.sh` now installs the new pins, rewrites the depth model in
+`checkpoints/hf/pipeline.yaml`, pre-fetches the MoGe-2 weights, and runs the test
+suite. It fails loudly if any of those steps fail.
 
-Run: `python -m pytest tests/ -v`
-Expected: PASS, no skips in `test_dependency_api_surface.py`.
-
-- [ ] **Step 3: Apply the config and confirm it landed**
+- [ ] **Step 2: Confirm the config landed**
 
 ```bash
-python scripts/set_depth_model.py --tag hf --variant moge2
-grep -A4 '^depth_model:' checkpoints/hf/pipeline.yaml
+grep -A4 '^depth_model:' /workspace/sam-3d-objects/checkpoints/hf/pipeline.yaml
 ```
 
 Expected output contains `moge.model.v2.MoGeModel.from_pretrained` and `Ruicheng/moge-2-vitl-normal`.
