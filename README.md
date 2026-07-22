@@ -23,7 +23,9 @@ SAM 3D Objects is one part of SAM 3D, a pair of models for object and human mesh
 
 ## Latest updates
 
-**11/19/2025** - Checkpoints Launched, Web Demo and Paper are out.
+* **06/02/2026** - [3D Artist Object Set](https://ai.meta.com/datasets/sa-3dao-sam-3d-artist-objects/) and [HF Leaderboard](https://huggingface.co/spaces/facebook/sa3dao-leaderboard) are out.
+* **06/01/2026** - Encoder weights are out.
+* **11/19/2025** - Checkpoints Launched, Web Demo and Paper are out.
 
 ## Installation
 
