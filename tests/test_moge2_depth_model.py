@@ -1,4 +1,13 @@
 """Tests for the MoGe-2 depth model wrapper (no GPU, no real weights)."""
+import os
+
+# Importing anything under the `sam3d_objects` package runs its __init__.py, which
+# pulls in the heavy `sam3d_objects.init` module unless LIDRA_SKIP_INIT is set. That
+# module is not needed to import the depth-model class, and the production entrypoint
+# (notebook/inference.py) sets this same flag for the same reason. Must be set before
+# the first sam3d_objects import below.
+os.environ.setdefault("LIDRA_SKIP_INIT", "1")
+
 import pytest
 
 torch = pytest.importorskip("torch")
