@@ -84,7 +84,13 @@ Werkzeug==3.0.6
 xatlas==0.0.9
 xformers==0.0.32.post2
 MoGe @ git+https://github.com/microsoft/MoGe.git@925b8ed835a7a9cdb7578ba15c658a0afc969030
-utils3d @ git+https://github.com/EasternJournalist/utils3d.git@3fab839f0be9931dac7c8488eb0e1600c236e183
+# utils3d is pinned to SAM3D's original (pre-MoGe-2) commit: SAM3D's rendering and
+# mesh-postprocessing code targets this API (utils3d.torch/.numpy/.io). MoGe-2 needs
+# a couple of newer utils3d.pt functions, which _moge2_utils3d_shim synthesizes from
+# this commit rather than upgrading utils3d and breaking SAM3D. NOTE: MoGe's own
+# install_requires pulls utils3d from PyPI and can clobber this pin during resolution,
+# so setup-gpu-server.sh force-reinstalls this exact commit --no-deps after install.
+utils3d @ git+https://github.com/EasternJournalist/utils3d.git@3913c65d81e05e47b9f367250cf8c0f7462a0900
 omegaconf
 psutil
 lightning

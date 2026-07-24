@@ -65,3 +65,16 @@ def test_invalid_pixels_stay_inf():
 def test_extra_v2_keys_pass_through():
     output = _wrapper()(torch.zeros((3, 2, 2)))
     assert "normal" in output and "mask" in output
+
+
+def test_shim_synthesizes_utils3d_pt():
+    """Constructing MoGe2 must expose the utils3d.pt functions MoGe-2 calls.
+
+    MoGe-2's infer() reads utils3d.pt.intrinsics_from_focal_center and
+    utils3d.pt.depth_map_to_point_map; SAM3D's pinned utils3d predates that
+    namespace, so the wrapper synthesizes it at construction.
+    """
+    utils3d = pytest.importorskip("utils3d")
+    MoGe2(_FakeMoGe2Model(), device="cpu")  # __init__ installs the shim
+    assert callable(utils3d.pt.intrinsics_from_focal_center)
+    assert callable(utils3d.pt.depth_map_to_point_map)

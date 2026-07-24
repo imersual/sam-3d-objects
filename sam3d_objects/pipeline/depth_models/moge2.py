@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from .base import DepthModel
+from . import _moge2_utils3d_shim
 
 
 class MoGe2(DepthModel):
@@ -10,7 +11,16 @@ class MoGe2(DepthModel):
     the token range, and ``apply_mask=True`` marks invalid pixels ``inf``, which
     is SAM3D's own convention -- see ``pipeline/utils/pointmap.py``). This
     matches how ``batch/run_moge2.py`` calls the model.
+
+    MoGe-2 reads ``utils3d.pt.*`` during inference, a namespace SAM3D's pinned
+    utils3d predates; ``_moge2_utils3d_shim.install()`` synthesizes it from the
+    functions that utils3d already ships, so SAM3D stays on its own utils3d
+    unchanged. Installed at construction, before any ``infer()`` call.
     """
+
+    def __init__(self, model, device="cuda"):
+        _moge2_utils3d_shim.install()
+        super().__init__(model, device)
 
     def __call__(self, image):
         output = self.model.infer(image.to(self.device))
