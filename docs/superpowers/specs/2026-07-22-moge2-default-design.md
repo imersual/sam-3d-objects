@@ -1,7 +1,35 @@
 # MoGe-2 as the default depth model
 
 **Date:** 2026-07-22
-**Status:** Approved
+**Status:** Implemented (with a mid-deployment design correction — see below)
+
+> ## Deployment correction (2026-07-23): utils3d incompatibility → shim, not pin-bump
+>
+> This spec's §1 assumed bumping the MoGe pin (and pinning its utils3d) would let
+> MoGe-2 run in-process. Deployment proved that wrong, and the `batch/config.sh`
+> warning right. The two components need **incompatible utils3d**:
+>
+> - **SAM3D** renders/post-processes meshes via the old `utils3d.torch/.numpy/.io`
+>   API (`rasterize_triangle_faces`, `depth_edge`, `write_ply`, mesh-topology
+>   helpers) — commit `3913c65`.
+> - **MoGe-2** (`moge/model/v2.py`) calls `utils3d.pt.intrinsics_from_focal_center`
+>   and `utils3d.pt.depth_map_to_point_map`. Newer utils3d added `.pt` but renamed
+>   or removed the functions SAM3D depends on and changed several return contracts.
+> - Extra trap: MoGe's `install_requires` pulls utils3d from **PyPI (1.3)**, which
+>   silently clobbers any git pin — so the first deploy ran against a utils3d that
+>   satisfied *neither* component.
+>
+> **What shipped instead of §1's pin-bump:** utils3d stays on SAM3D's own `3913c65`
+> (SAM3D's rendering/mesh code is untouched — zero quality risk), and a small shim
+> `sam3d_objects/pipeline/depth_models/_moge2_utils3d_shim.py` synthesizes the two
+> `utils3d.pt` functions MoGe-2 needs from what `3913c65` already ships (one same-name,
+> one under its old name `depth_to_points`). `MoGe2.__init__` installs it before any
+> inference. `setup-gpu-server.sh` force-reinstalls `utils3d@3913c65 --no-deps` after
+> the main install so PyPI can't win. Everything else in this spec (the wrapper's
+> no-kwargs call, the `set_depth_model.py` config override, the weight prefetch, the
+> LIDRA_SKIP_INIT test fix, the fail-on-skip gate) stands as written.
+>
+> Full old→new API analysis: `.superpowers/sdd/utils3d-migration-map.md`.
 
 ## Goal
 
