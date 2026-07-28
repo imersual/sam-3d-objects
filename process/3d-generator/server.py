@@ -132,7 +132,6 @@ def infer(req: InferRequest):
             images.append(image)
             masks.append(mask)
 
-        metric_scale = None
         if len(view_specs) == 1:
             output = _inference(
                 images[0],
@@ -143,12 +142,11 @@ def infer(req: InferRequest):
                 with_layout_postprocess=True,
                 rendering_engine="nvdiffrast",
             )
-            metric_scale = extract_metric_scale(output)
         else:
-            # Layout postprocess is not supported in multi-view mode. The pose
-            # is also decoded without a metric pointmap there (scene_scale
-            # defaults to 1.0), so output["scale"] is not real-world size and
-            # the mesh stays in its normalized unit cube.
+            # Layout postprocess is not supported in multi-view mode: it aligns
+            # the object into one view's scene frame, which is ambiguous with
+            # several views. The metric scale still comes through — it is
+            # decoded per view against that view's pointmap and combined.
             output = _inference.multi_view(
                 images,
                 masks,
@@ -157,6 +155,8 @@ def infer(req: InferRequest):
                 with_texture_baking=True,
                 rendering_engine="nvdiffrast",
             )
+
+        metric_scale = extract_metric_scale(output)
 
         mesh = output["glb"]
         if metric_scale is not None:
@@ -188,8 +188,8 @@ def infer(req: InferRequest):
         "seed": seed,
         "views": len(view_specs),
         # Metres per unit-cube unit, already baked into the exported mesh.
-        # None means the mesh is still unit-cube sized (multiview, or the
-        # layout head produced nothing usable).
+        # None means the mesh is still unit-cube sized (the layout head
+        # produced nothing usable).
         "metric_scale": metric_scale,
     }
 

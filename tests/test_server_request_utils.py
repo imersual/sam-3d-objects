@@ -116,3 +116,13 @@ def test_metric_scale_rejects_non_positive_and_non_finite_values():
 def test_metric_scale_rejects_garbage():
     assert extract_metric_scale({"scale": ["big"]}) is None
     assert extract_metric_scale({"scale": []}) is None
+
+
+def test_metric_scale_honours_the_not_metric_flag():
+    """A scale in SSI units must never be baked into the mesh."""
+    assert extract_metric_scale({"scale": [0.2], "scale_is_metric": False}) is None
+    assert extract_metric_scale(
+        {"scale": [0.2], "scale_is_metric": True}
+    ) == pytest.approx(0.2)
+    # absent flag stays metric — the single-view path predates it
+    assert extract_metric_scale({"scale": [0.2]}) == pytest.approx(0.2)

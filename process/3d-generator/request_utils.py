@@ -60,6 +60,12 @@ def extract_metric_scale(output):
 
     Returns a positive float, or None when the value is missing or unusable.
     """
+    # The pipeline sets this to False when it decoded a scale it could not tie
+    # to metric depth (SSI units, not metres). Baking that in would be worse
+    # than leaving the mesh unit-cube sized, because it looks real.
+    if output.get("scale_is_metric") is False:
+        return None
+
     scale = output.get("scale")
     if scale is None:
         return None

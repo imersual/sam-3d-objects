@@ -1158,7 +1158,72 @@ class InferencePipeline:
             mode=mode,
         )
 
-        ss_return_dict.update(self.pose_decoder(ss_return_dict))
+        from sam3d_objects.pipeline.multi_view_utils import (
+            SCALE_DISAGREEMENT_RATIO,
+            combine_view_scales,
+        )
+
+        # The pose head predicts scale in a scale-shift-invariant frame; it only
+        # becomes metres once multiplied by the scene scale of the pointmap that
+        # conditioned it. Decoding without one -- the old behaviour here -- left
+        # every multi-view object unit-cube sized. Each view carries its own
+        # pointmap, so decode the shared stage-1 prediction once per view and
+        # combine the estimates.
+        scene_scales = [d.get("pointmap_scale") for d in view_ss_input_dicts]
+        pose_decodes = [
+            self.pose_decoder(
+                ss_return_dict,
+                scene_scale=scene_scale,
+                scene_shift=d.get("pointmap_shift"),
+            )
+            for d, scene_scale in zip(view_ss_input_dicts, scene_scales)
+        ]
+        # View 0 is the reference frame for rotation and translation; only the
+        # scale is view-independent enough to combine across views.
+        pose = dict(pose_decodes[0])
+
+        # Without a pointmap on every view (the non-pointmap pipeline) the
+        # decoded scale is in SSI units, not metres. Say so, so callers don't
+        # bake a meaningless number into the exported mesh.
+        scale_is_metric = all(s is not None for s in scene_scales)
+        if not scale_is_metric:
+            logger.warning(
+                "Not every view had a pointmap; the predicted scale is not "
+                "metric and the mesh stays unit-cube sized."
+            )
+        elif pose.get("scale") is not None:
+            per_view = [
+                float(p["scale"].float().mean())
+                for p in pose_decodes
+                if p.get("scale") is not None
+            ]
+            median, disagreement = combine_view_scales(per_view)
+            if median is None:
+                scale_is_metric = False
+                logger.warning(
+                    "No usable per-view size estimate; the mesh stays "
+                    "unit-cube sized."
+                )
+            else:
+                pose["scale"] = torch.full_like(pose["scale"], median)
+                # Logged before the downsample_factor rescale below, so these
+                # are proportional to but not yet the final metres.
+                logger.info(
+                    "Per-view size estimates: "
+                    f"{[round(s, 4) for s in per_view]} -> median {median:.4f}"
+                )
+                if (
+                    disagreement is not None
+                    and disagreement > SCALE_DISAGREEMENT_RATIO
+                ):
+                    logger.warning(
+                        f"Views disagree on object size by {disagreement:.2f}x "
+                        f"(> {SCALE_DISAGREEMENT_RATIO}x); this reconstruction's "
+                        "real-world size is unreliable."
+                    )
+
+        ss_return_dict.update(pose)
+        ss_return_dict["scale_is_metric"] = scale_is_metric
 
         if "scale" in ss_return_dict:
             logger.info(

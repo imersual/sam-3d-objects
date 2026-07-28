@@ -475,6 +475,9 @@ class InferencePipelinePointMap(InferencePipeline):
             ss_return_dict["scale"] = (
                 ss_return_dict["scale"] * ss_return_dict["downsample_factor"]
             )
+            # Decoded against the MoGe pointmap's scene scale above, so this is
+            # metres per unit-cube unit and callers may bake it into the mesh.
+            ss_return_dict["scale_is_metric"] = True
 
             if stage1_only:
                 logger.info("Finished!")
