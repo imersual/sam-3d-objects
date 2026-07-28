@@ -18,7 +18,9 @@ output_path = sys.argv[-1]
 
 # import inference code
 sys.path.append("notebook")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from inference import Inference, load_image, load_mask
+from request_utils import extract_metric_scale
 import numpy as np
 import random
 
@@ -51,6 +53,16 @@ output = inference(
 )
 
 mesh = output["glb"]
+
+# SAM3D emits the mesh normalized to a [-0.5, 0.5] cube (longest side = 1.0).
+# Bake in the predicted real-world size so the export is in metres.
+metric_scale = extract_metric_scale(output)
+if metric_scale is not None:
+    mesh.apply_scale(metric_scale)
+    print(f"Applied metric scale {metric_scale:.4f} | bbox (m) = {mesh.extents}")
+else:
+    print("Warning: no metric scale available; exporting unit-cube mesh")
+
 print(f"Exporting 3D model to: {output_path}")
 mesh.export(output_path)
 print(f"✓ 3D model exported successfully to {output_path}")

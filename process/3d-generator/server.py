@@ -39,7 +39,7 @@ import uvicorn
 import torch
 import numpy as np
 from inference import Inference, load_image, load_mask
-from request_utils import normalize_views
+from request_utils import normalize_views, extract_metric_scale
 
 # ── logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -132,6 +132,7 @@ def infer(req: InferRequest):
             images.append(image)
             masks.append(mask)
 
+        metric_scale = None
         if len(view_specs) == 1:
             output = _inference(
                 images[0],
@@ -142,8 +143,12 @@ def infer(req: InferRequest):
                 with_layout_postprocess=True,
                 rendering_engine="nvdiffrast",
             )
+            metric_scale = extract_metric_scale(output)
         else:
-            # Layout postprocess is not supported in multi-view mode.
+            # Layout postprocess is not supported in multi-view mode. The pose
+            # is also decoded without a metric pointmap there (scene_scale
+            # defaults to 1.0), so output["scale"] is not real-world size and
+            # the mesh stays in its normalized unit cube.
             output = _inference.multi_view(
                 images,
                 masks,
@@ -154,6 +159,20 @@ def infer(req: InferRequest):
             )
 
         mesh = output["glb"]
+        if metric_scale is not None:
+            # SAM3D always emits the mesh normalized to a [-0.5, 0.5] cube
+            # (longest side = 1.0). Bake in the predicted size so the exported
+            # file is in metres.
+            mesh.apply_scale(metric_scale)
+            log.info(
+                f"Applied metric scale {metric_scale:.4f} | "
+                f"bbox (m) = {np.round(mesh.extents, 4).tolist()}"
+            )
+        else:
+            log.warning(
+                "No metric scale available; exporting unit-cube mesh "
+                "(longest side = 1.0)"
+            )
         mesh.export(str(output_path))
         log.info(f"Exported mesh to: {output_path}")
 
@@ -164,7 +183,15 @@ def infer(req: InferRequest):
         # Release fragmented reserved-but-unallocated memory back to CUDA.
         torch.cuda.empty_cache()
 
-    return {"output_path": str(output_path), "seed": seed, "views": len(view_specs)}
+    return {
+        "output_path": str(output_path),
+        "seed": seed,
+        "views": len(view_specs),
+        # Metres per unit-cube unit, already baked into the exported mesh.
+        # None means the mesh is still unit-cube sized (multiview, or the
+        # layout head produced nothing usable).
+        "metric_scale": metric_scale,
+    }
 
 
 # ── entrypoint ────────────────────────────────────────────────────────────────
