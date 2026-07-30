@@ -84,13 +84,13 @@ Werkzeug==3.0.6
 xatlas==0.0.9
 xformers==0.0.32.post2
 MoGe @ git+https://github.com/microsoft/MoGe.git@925b8ed835a7a9cdb7578ba15c658a0afc969030
-# utils3d is pinned to SAM3D's original (pre-MoGe-2) commit: SAM3D's rendering and
-# mesh-postprocessing code targets this API (utils3d.torch/.numpy/.io). MoGe-2 needs
-# a couple of newer utils3d.pt functions, which _moge2_utils3d_shim synthesizes from
-# this commit rather than upgrading utils3d and breaking SAM3D. NOTE: MoGe's own
-# install_requires pulls utils3d from PyPI and can clobber this pin during resolution,
-# so setup-gpu-server.sh force-reinstalls this exact commit --no-deps after install.
-utils3d @ git+https://github.com/EasternJournalist/utils3d.git@3913c65d81e05e47b9f367250cf8c0f7462a0900
+# NOTE: utils3d is deliberately NOT pinned here. SAM3D's rendering/mesh code targets
+# the old utils3d.torch/.numpy/.io API (commit 3913c65), but MoGe (above) declares a
+# newer utils3d (1.3 @ 3fab839f) in its own install_requires. Pinning 3913c65 here
+# produces a hard pip ResolutionImpossible against MoGe's declared version. So we let
+# the resolver install MoGe's utils3d, then setup-gpu-server.sh force-reinstalls
+# 3913c65 with --no-deps (bypassing the resolver) right after this install. SAM3D then
+# runs on 3913c65; MoGe-2's newer utils3d.pt functions come from _moge2_utils3d_shim.
 omegaconf
 psutil
 lightning
