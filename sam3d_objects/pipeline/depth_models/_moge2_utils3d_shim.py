@@ -28,9 +28,23 @@ import utils3d
 import utils3d.torch  # noqa: F401  ensure the backend submodule is imported
 
 
+def _existing_pt():
+    """Return a real ``utils3d.pt`` if this utils3d has one, else None.
+
+    ``getattr(utils3d, "pt", None)`` is NOT safe here: utils3d's ``__init__``
+    defines a lazy ``__getattr__`` that calls ``importlib.import_module('.pt')``,
+    and getattr's default only suppresses AttributeError -- the ModuleNotFoundError
+    raised for a missing submodule propagates instead.
+    """
+    try:
+        return getattr(utils3d, "pt")
+    except (AttributeError, ImportError):
+        return None
+
+
 def install():
     """Ensure ``utils3d.pt`` exposes the functions MoGe-2 calls. Idempotent."""
-    if getattr(utils3d, "pt", None) is not None:
+    if _existing_pt() is not None:
         return
 
     pt = types.ModuleType("utils3d.pt")

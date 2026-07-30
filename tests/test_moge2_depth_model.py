@@ -78,3 +78,17 @@ def test_shim_synthesizes_utils3d_pt():
     MoGe2(_FakeMoGe2Model(), device="cpu")  # __init__ installs the shim
     assert callable(utils3d.pt.intrinsics_from_focal_center)
     assert callable(utils3d.pt.depth_map_to_point_map)
+
+
+def test_shim_install_is_idempotent():
+    """Installing twice must not raise.
+
+    Regression: the original guard used getattr(utils3d, "pt", None), but utils3d's
+    lazy __getattr__ raises ModuleNotFoundError for a missing submodule rather than
+    AttributeError, so the default was never applied and the guard itself blew up.
+    """
+    pytest.importorskip("utils3d")
+    from sam3d_objects.pipeline.depth_models import _moge2_utils3d_shim
+
+    _moge2_utils3d_shim.install()
+    _moge2_utils3d_shim.install()  # second call takes the already-installed path
