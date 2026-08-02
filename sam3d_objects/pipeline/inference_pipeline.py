@@ -563,8 +563,8 @@ class InferencePipeline:
                 outputs["gaussian"][0],
                 outputs["mesh"][0],
                 # Optional parameters
-                simplify=0.95,  # Ratio of triangles to remove in the simplification process
-                texture_size=1024,  # Size of the texture used for the GLB
+                simplify=0.8,  # Ratio of triangles to remove in the simplification process
+                texture_size=4096,  # Size of the texture used for the GLB
                 verbose=False,
                 with_mesh_postprocess=with_mesh_postprocess,
                 with_texture_baking=with_texture_baking,
@@ -1098,9 +1098,7 @@ class InferencePipeline:
         if seed is not None:
             torch.manual_seed(seed)
 
-        logger.info(
-            f"Running multi-view inference with {num_views} views, mode={mode}"
-        )
+        logger.info(f"Running multi-view inference with {num_views} views, mode={mode}")
         if num_views > 8:
             logger.info(
                 f"Note: runtime scales roughly linearly with view count "
@@ -1140,9 +1138,7 @@ class InferencePipeline:
                     rgba_image, self.slat_preprocessor
                 )
             else:
-                ss_input_dict = self.preprocess_image(
-                    rgba_image, self.ss_preprocessor
-                )
+                ss_input_dict = self.preprocess_image(rgba_image, self.ss_preprocessor)
                 slat_input_dict = self.preprocess_image(
                     rgba_image, self.slat_preprocessor
                 )
@@ -1212,10 +1208,7 @@ class InferencePipeline:
                     "Per-view size estimates: "
                     f"{[round(s, 4) for s in per_view]} -> median {median:.4f}"
                 )
-                if (
-                    disagreement is not None
-                    and disagreement > SCALE_DISAGREEMENT_RATIO
-                ):
+                if disagreement is not None and disagreement > SCALE_DISAGREEMENT_RATIO:
                     logger.warning(
                         f"Views disagree on object size by {disagreement:.2f}x "
                         f"(> {SCALE_DISAGREEMENT_RATIO}x); this reconstruction's "
@@ -1226,9 +1219,7 @@ class InferencePipeline:
         ss_return_dict["scale_is_metric"] = scale_is_metric
 
         if "scale" in ss_return_dict:
-            logger.info(
-                f"Rescaling scale by {ss_return_dict['downsample_factor']}"
-            )
+            logger.info(f"Rescaling scale by {ss_return_dict['downsample_factor']}")
             ss_return_dict["scale"] = (
                 ss_return_dict["scale"] * ss_return_dict["downsample_factor"]
             )
