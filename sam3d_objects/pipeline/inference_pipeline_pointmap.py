@@ -297,6 +297,21 @@ class InferencePipelinePointMap(InferencePipeline):
             )
             points_tensor = camera_convention_transform.transform_points(pointmaps)
             intrinsics = output.get("intrinsics", None)
+            # MoGe-2's own per-pixel surface normal, when the checkpoint has a
+            # normal head (e.g. Ruicheng/moge-2-vitl-normal, SAM3D's default --
+            # see setup-gpu-server.sh). Deliberately NOT run through
+            # camera_convention_transform below: that rotation exists only to
+            # match PyTorch3D's axis convention for `pointmap` (this class's
+            # diffusion-model conditioning input). `normal` instead stays in
+            # MoGe's own camera-space convention -- X right, Y down, Z forward
+            # (away from camera), unit-length per pixel -- the SAME convention
+            # `intrinsics` above (and batch/run_moge2.py's documented
+            # convention) already use, so the two remain mutually consistent
+            # for reprojecting onto the source photo. Masked-out background
+            # pixels are the zero vector (0, 0, 0), NOT `inf` like points/depth
+            # -- MoGe zeroes them (moge/model/v2.py's infer(), apply_mask
+            # branch) rather than marking them invalid the SAM3D way.
+            normal = output.get("normal", None)
         else:
             output = {}
             points_tensor = pointmap.to(self.device)
@@ -313,6 +328,9 @@ class InferencePipelinePointMap(InferencePipeline):
                     .permute(1, 2, 0)
                 )
             intrinsics = None
+            # No depth-model inference ran (an external pointmap was supplied
+            # directly), so there is no per-pixel normal prediction to offer.
+            normal = None
 
         # Prepare the point map tensor
         point_map_tensor = {
@@ -335,6 +353,11 @@ class InferencePipelinePointMap(InferencePipeline):
             point_map_tensor["intrinsics"] = intrinsics_result["intrinsics"]
         else:
             point_map_tensor["intrinsics"] = intrinsics
+
+        # Additive: surfaced to callers of `run()` alongside `pointmap` below.
+        # None when unavailable (external pointmap, or a depth-model
+        # checkpoint without a normal head) -- never fabricated.
+        point_map_tensor["normal"] = normal
 
         points_tensor = points_tensor.permute(2, 0, 1)
         points_tensor = self._clip_pointmap(points_tensor, loaded_mask)
@@ -486,6 +509,11 @@ class InferencePipelinePointMap(InferencePipeline):
                     **ss_return_dict,
                     "pointmap": pts.cpu().permute((1, 2, 0)),  # HxWx3
                     "pointmap_colors": pts_colors.cpu().permute((1, 2, 0)),  # HxWx3
+                    # Additive (see compute_pointmap): normalized camera
+                    # intrinsics and MoGe's per-pixel normal map, both in
+                    # MoGe's own camera-space convention. None when unavailable.
+                    "intrinsics": pointmap_dict.get("intrinsics"),
+                    "normal": pointmap_dict.get("normal"),
                 }
                 # return ss_return_dict
 
@@ -565,6 +593,15 @@ class InferencePipelinePointMap(InferencePipeline):
                 **outputs,
                 "pointmap": pts.cpu().permute((1, 2, 0)),  # HxWx3
                 "pointmap_colors": pts_colors.cpu().permute((1, 2, 0)),  # HxWx3
+                # Additive (see compute_pointmap): normalized camera intrinsics
+                # (3x3) and MoGe's per-pixel normal map (HxWx3, full input
+                # resolution), both in MoGe's own camera-space convention --
+                # NOT the PyTorch3D convention `pointmap` above uses. None when
+                # unavailable (e.g. depth-model checkpoint without a normal
+                # head). request_utils.extract_intrinsics reads the former for
+                # the /infer response.
+                "intrinsics": pointmap_dict.get("intrinsics"),
+                "normal": pointmap_dict.get("normal"),
             }
 
     @staticmethod

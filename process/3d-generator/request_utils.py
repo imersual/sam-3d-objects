@@ -3,6 +3,7 @@
 Kept free of torch/model imports so they can be unit-tested anywhere.
 """
 import math
+from pathlib import PurePath
 
 MAX_VIEWS = 4
 
@@ -166,3 +167,74 @@ def extract_pose(output):
         "scale_is_metric": scale_is_metric,
         "iou": iou,
     }
+
+
+def extract_intrinsics(output):
+    """Pull the camera intrinsics matrix out of a SAM3D result dict, if any.
+
+    MoGe-2 predicts this as part of ordinary per-image inference (see
+    `InferencePipelinePointMap.compute_pointmap`, sam3d_objects/pipeline/
+    inference_pipeline_pointmap.py); when the depth model doesn't supply one
+    (e.g. an externally supplied pointmap), `infer_intrinsics_from_pointmap`
+    fills in an equivalent one. Either way it is the standard OpenCV-style
+    matrix
+
+        [[fx,  0, cx],
+         [ 0, fy, cy],
+         [ 0,  0,  1]]
+
+    and NORMALIZED, not pixel-space: fx/cx are fractions of image width, fy/cy
+    are fractions of image height (cx = cy = 0.5 always -- MoGe assumes a
+    centered principal point; see utils3d's `intrinsics_from_focal_center`,
+    whose docstring calls this "OpenCV intrinsics" and whose `project_cv`
+    consumer documents its output as "uv coordinates, value ranging in
+    [0, 1]"). To convert to pixel units, multiply the first row by the image
+    width and the second row by the image height:
+
+        fx_px, cx_px = fx * width,  cx * width
+        fy_px, cy_px = fy * height, cy * height
+
+    This is MoGe's own camera-space convention (X right, Y down, Z forward --
+    see batch/run_moge2.py's documented convention, and compute_pointmap's
+    `normal`, which deliberately shares it). Whether that also matches the
+    axis convention `extract_pose`'s rotation/translation are decoded in
+    (SAM3D rotates points into a PyTorch3D convention for its own
+    diffusion-model conditioning before the pose decoder ever sees them) was
+    NOT verified here -- do not assume `pose` and `intrinsics` compose
+    without checking.
+
+    Pass the raw pipeline output dict for a single-view request. Pass None
+    (or {}) for a multiview result, for the same reason `extract_pose` does:
+    `run_multi_view` computes one intrinsics matrix per view internally and
+    discards all of them (see InferencePipeline.run_multi_view), rather than
+    picking one view's frame arbitrarily.
+
+    Returns a 3x3 nested list of floats (row-major, matching the matrix
+    above), or None when missing or unusable. Plain JSON-serialisable types
+    only, safe to return straight from the /infer response.
+    """
+    output = output or {}
+    flat = _to_flat_float_list(output.get("intrinsics"))
+    if not flat or len(flat) != 9:
+        return None
+    if not all(math.isfinite(v) for v in flat):
+        return None
+    return [flat[0:3], flat[3:6], flat[6:9]]
+
+
+def normal_map_sidecar_path(output_path):
+    """Derive the on-disk path for an optional dumped normal map.
+
+    Mirrors the caller-provided `output_path` (the exported GLB destination):
+    same directory, same stem, `_normal.npy` suffix -- e.g.
+    "out/mesh.glb" -> "out/mesh_normal.npy". Pure path-string manipulation
+    (no filesystem access), so it's unit-testable without the torch/numpy
+    imports the actual save (server.py) requires.
+
+    Always returns a forward-slash ("/") path via `PurePath.as_posix()`: the
+    server only ever runs on the same (Linux) machine as its caller, so this
+    matches production exactly, and stays unambiguous when this module's
+    tests run on a different OS.
+    """
+    p = PurePath(str(output_path))
+    return p.with_name(p.stem + "_normal.npy").as_posix()

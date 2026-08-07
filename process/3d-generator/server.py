@@ -39,7 +39,13 @@ import uvicorn
 import torch
 import numpy as np
 from inference import Inference, load_image, load_mask
-from request_utils import normalize_views, extract_metric_scale, extract_pose
+from request_utils import (
+    normalize_views,
+    extract_metric_scale,
+    extract_pose,
+    extract_intrinsics,
+    normal_map_sidecar_path,
+)
 
 # ── logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -84,6 +90,13 @@ class InferRequest(BaseModel):
     # Multiview: one entry per photo of the same object.
     # Takes precedence over image_path/mask_paths when provided.
     views: list[ViewInput] | None = None
+    # Opt-in: dump MoGe-2's full-resolution per-pixel normal map (HxWx3
+    # float32, likely several MB) to a .npy file beside output_path and
+    # return its path as normal_map_path. Ignored (stays null) for
+    # multiview requests and when the depth model has no normal head.
+    # Default False: callers that don't ask for it see no new file and no
+    # extra work, exactly as before this field existed.
+    return_normal_map: bool = False
 
 
 @app.get("/health")
@@ -146,6 +159,9 @@ def infer(req: InferRequest):
             # source photo's metric camera frame; surface it (see extract_pose)
             # instead of discarding it as before.
             pose = extract_pose(output)
+            # MoGe-2's normalized camera intrinsics for this same photo (see
+            # extract_intrinsics). Additive/informational, like pose.
+            intrinsics = extract_intrinsics(output)
         else:
             # Layout postprocess is not supported in multi-view mode: it aligns
             # the object into one view's scene frame, which is ambiguous with
@@ -162,6 +178,10 @@ def infer(req: InferRequest):
             # No layout postprocess in multi-view -> no camera-frame pose.
             # Nulls, not an invented pose from an arbitrary view.
             pose = extract_pose(None)
+            # Same reasoning as pose: run_multi_view computes one intrinsics
+            # matrix per view internally and keeps none of them, rather than
+            # picking one view's frame arbitrarily. Null, not invented.
+            intrinsics = extract_intrinsics(None)
 
         metric_scale = extract_metric_scale(output)
 
@@ -192,6 +212,42 @@ def infer(req: InferRequest):
         mesh.export(str(output_path))
         log.info(f"Exported mesh to: {output_path}")
 
+        # Opt-in (req.return_normal_map): dump MoGe-2's per-pixel normal map
+        # next to the GLB and return its path, instead of inlining a
+        # full-resolution HxWx3 float array as JSON (easily several MB per
+        # request -- see request_utils.normal_map_sidecar_path / the /infer
+        # docstring in this module's design notes). Not meaningful for
+        # multiview (no single camera frame), so it stays null there
+        # regardless of the flag, same as pose/intrinsics above.
+        normal_map_path = None
+        if req.return_normal_map and len(view_specs) == 1:
+            normal_tensor = output.get("normal")
+            if normal_tensor is None:
+                log.info(
+                    "return_normal_map=True but the depth model produced no "
+                    "normal map (checkpoint has no normal head); returning null."
+                )
+            else:
+                try:
+                    candidate_path = normal_map_sidecar_path(str(output_path))
+                    np.save(
+                        candidate_path,
+                        normal_tensor.detach().cpu().numpy().astype(np.float32),
+                    )
+                    normal_map_path = candidate_path
+                    log.info(f"Wrote normal map to: {normal_map_path}")
+                except Exception as exc:
+                    # Non-fatal: the mesh above already reconstructed
+                    # successfully and is the primary deliverable. Losing this
+                    # optional sidecar must not turn a good reconstruction
+                    # into a 500.
+                    log.warning(f"Failed to write normal map (non-fatal): {exc}")
+        elif req.return_normal_map:
+            log.info(
+                "return_normal_map=True has no effect for multiview requests "
+                "(no single camera frame to express a normal map in)."
+            )
+
     except Exception as exc:
         log.exception("Inference failed")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -213,6 +269,20 @@ def infer(req: InferRequest):
         # object-local frame, exactly as before this field existed. All entries
         # are None for multiview requests (no layout postprocess is run).
         "pose": pose,
+        # MoGe-2's normalized camera intrinsics for the source photo (see
+        # extract_intrinsics for the exact convention and how to convert to
+        # pixels). Additive / informational, same caveats as pose: None for
+        # multiview requests. NOTE: not confirmed to share pose's axis
+        # convention -- see extract_intrinsics's docstring before combining
+        # the two.
+        "intrinsics": intrinsics,
+        # Path to MoGe-2's full-resolution per-pixel normal map (float32
+        # .npy, HxWx3, MoGe's own camera-space convention -- same one
+        # `intrinsics` above uses), written only when the request set
+        # return_normal_map=True. None otherwise: not requested, multiview,
+        # the checkpoint has no normal head, or the write failed (logged,
+        # non-fatal).
+        "normal_map_path": normal_map_path,
     }
 
 

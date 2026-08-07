@@ -10,8 +10,10 @@ sys.path.insert(
 
 from request_utils import (  # noqa: E402
     MAX_VIEWS,
+    extract_intrinsics,
     extract_metric_scale,
     extract_pose,
+    normal_map_sidecar_path,
     normalize_views,
 )
 
@@ -273,3 +275,87 @@ def test_pose_return_has_exactly_the_documented_keys():
         "scale_is_metric",
         "iou",
     }
+
+
+# ── extract_intrinsics ───────────────────────────────────────────────────────
+
+_SAMPLE_INTRINSICS = [[1.2, 0.0, 0.5], [0.0, 1.5, 0.5], [0.0, 0.0, 1.0]]
+_SAMPLE_INTRINSICS_FLAT = [1.2, 0.0, 0.5, 0.0, 1.5, 0.5, 0.0, 0.0, 1.0]
+
+
+def test_intrinsics_extracts_a_3x3_nested_list():
+    assert extract_intrinsics({"intrinsics": _SAMPLE_INTRINSICS}) == _SAMPLE_INTRINSICS
+
+
+def test_intrinsics_reads_tensor_like_objects():
+    """Same tensor-like duck type extract_pose/extract_metric_scale accept."""
+    assert (
+        extract_intrinsics({"intrinsics": _FakeTensor(_SAMPLE_INTRINSICS_FLAT)})
+        == _SAMPLE_INTRINSICS
+    )
+
+
+def test_intrinsics_is_none_when_absent():
+    assert extract_intrinsics({"glb": object()}) is None
+    assert extract_intrinsics({"intrinsics": None}) is None
+
+
+def test_intrinsics_is_none_for_multiview():
+    """run_multi_view keeps no single intrinsics matrix (one per view,
+    computed and discarded internally); server.py passes None for multiview
+    results -- nulls, not an invented frame, same as extract_pose(None)."""
+    assert extract_intrinsics(None) is None
+    assert extract_intrinsics({}) is None
+
+
+def test_intrinsics_rejects_wrong_element_count():
+    assert extract_intrinsics({"intrinsics": [1.0, 2.0, 3.0]}) is None
+    assert extract_intrinsics({"intrinsics": []}) is None
+    assert extract_intrinsics({"intrinsics": _SAMPLE_INTRINSICS_FLAT + [1.0]}) is None
+
+
+def test_intrinsics_rejects_non_finite_values():
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        flat = list(_SAMPLE_INTRINSICS_FLAT)
+        flat[-1] = bad
+        assert extract_intrinsics({"intrinsics": flat}) is None
+
+
+def test_intrinsics_rejects_garbage():
+    assert extract_intrinsics({"intrinsics": ["a", "b", "c"]}) is None
+
+
+def test_intrinsics_accepts_a_flat_9_element_list_row_major():
+    """A flat (non-nested) 9-element input is reshaped row-major into 3x3."""
+    assert extract_intrinsics({"intrinsics": _SAMPLE_INTRINSICS_FLAT}) == _SAMPLE_INTRINSICS
+
+
+# ── normal_map_sidecar_path ──────────────────────────────────────────────────
+
+
+def test_normal_map_sidecar_path_same_directory_and_stem():
+    assert normal_map_sidecar_path("out/mesh.glb") == "out/mesh_normal.npy"
+
+
+def test_normal_map_sidecar_path_with_no_directory():
+    assert normal_map_sidecar_path("mesh.glb") == "mesh_normal.npy"
+
+
+def test_normal_map_sidecar_path_preserves_dots_in_the_stem():
+    # pathlib's .stem strips only the LAST suffix.
+    assert normal_map_sidecar_path("out/mesh.v2.glb") == "out/mesh.v2_normal.npy"
+
+
+def test_normal_map_sidecar_path_accepts_path_like_input():
+    from pathlib import PurePosixPath
+
+    assert (
+        normal_map_sidecar_path(PurePosixPath("out/mesh.glb"))
+        == "out/mesh_normal.npy"
+    )
+
+
+def test_normal_map_sidecar_path_is_always_forward_slash():
+    """Production only ever runs on the same (Linux) machine as its caller;
+    as_posix() keeps the result deterministic under Windows-run tests too."""
+    assert "\\" not in normal_map_sidecar_path("out/mesh.glb")
