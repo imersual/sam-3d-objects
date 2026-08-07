@@ -39,7 +39,7 @@ import uvicorn
 import torch
 import numpy as np
 from inference import Inference, load_image, load_mask
-from request_utils import normalize_views, extract_metric_scale
+from request_utils import normalize_views, extract_metric_scale, extract_pose
 
 # ── logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -142,6 +142,10 @@ def infer(req: InferRequest):
                 with_layout_postprocess=True,
                 rendering_engine="nvdiffrast",
             )
+            # with_layout_postprocess=True solves the object's pose in the
+            # source photo's metric camera frame; surface it (see extract_pose)
+            # instead of discarding it as before.
+            pose = extract_pose(output)
         else:
             # Layout postprocess is not supported in multi-view mode: it aligns
             # the object into one view's scene frame, which is ambiguous with
@@ -155,6 +159,9 @@ def infer(req: InferRequest):
                 with_texture_baking=True,
                 rendering_engine="nvdiffrast",
             )
+            # No layout postprocess in multi-view -> no camera-frame pose.
+            # Nulls, not an invented pose from an arbitrary view.
+            pose = extract_pose(None)
 
         metric_scale = extract_metric_scale(output)
 
@@ -163,6 +170,15 @@ def infer(req: InferRequest):
             # SAM3D always emits the mesh normalized to a [-0.5, 0.5] cube
             # (longest side = 1.0). Bake in the predicted size so the exported
             # file is in metres.
+            #
+            # TRAP for a future caller that also consumes `pose` below: do
+            # NOT apply both `metric_scale` (mesh.apply_scale, right here)
+            # and `pose["scale"]` to the same mesh. pose["scale"] already
+            # contains this same metric scale (it's the unrounded per-axis
+            # source `metric_scale` is averaged from) -- applying both
+            # squares it. Placing a mesh with `pose` must start from the
+            # mesh AS EXPORTED (already metric-scaled here) and apply only
+            # pose["rotation"] + pose["translation"] on top.
             mesh.apply_scale(metric_scale)
             log.info(
                 f"Applied metric scale {metric_scale:.4f} | "
@@ -191,6 +207,12 @@ def infer(req: InferRequest):
         # None means the mesh is still unit-cube sized (the layout head
         # produced nothing usable).
         "metric_scale": metric_scale,
+        # The camera-frame pose the pipeline solves for (with_layout_postprocess
+        # single-view requests only; see extract_pose). Additive / informational
+        # only -- the exported mesh above is unaffected and stays in its own
+        # object-local frame, exactly as before this field existed. All entries
+        # are None for multiview requests (no layout postprocess is run).
+        "pose": pose,
     }
 
 

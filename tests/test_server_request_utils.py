@@ -11,6 +11,7 @@ sys.path.insert(
 from request_utils import (  # noqa: E402
     MAX_VIEWS,
     extract_metric_scale,
+    extract_pose,
     normalize_views,
 )
 
@@ -126,3 +127,149 @@ def test_metric_scale_honours_the_not_metric_flag():
     ) == pytest.approx(0.2)
     # absent flag stays metric — the single-view path predates it
     assert extract_metric_scale({"scale": [0.2]}) == pytest.approx(0.2)
+
+
+# ── extract_pose ──────────────────────────────────────────────────────────────
+
+
+class _FakeTensor:
+    """Stands in for the small torch tensors SAM3D actually returns for
+    rotation/translation/scale (see extract_metric_scale's FakeTensor above,
+    duplicated at module scope so every extract_pose test can share it)."""
+
+    def __init__(self, values):
+        self._values = values
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def reshape(self, _shape):
+        return self
+
+    def tolist(self):
+        return self._values
+
+
+def _full_pose_output(**overrides):
+    output = {
+        "rotation": [1.0, 0.0, 0.0, 0.0],
+        "translation": [0.1, 0.2, 0.3],
+        "scale": [0.5, 0.5, 0.5],
+        "scale_is_metric": True,
+        "iou": 0.87,
+    }
+    output.update(overrides)
+    return output
+
+
+def test_pose_extracts_every_field_when_fully_available():
+    assert extract_pose(_full_pose_output()) == {
+        "rotation": [1.0, 0.0, 0.0, 0.0],
+        "translation": [0.1, 0.2, 0.3],
+        "scale": [0.5, 0.5, 0.5],
+        "scale_is_metric": True,
+        "iou": 0.87,
+    }
+
+
+def test_pose_reads_tensor_like_objects():
+    output = _full_pose_output(
+        rotation=_FakeTensor([1.0, 0.0, 0.0, 0.0]),
+        translation=_FakeTensor([0.1, 0.2, 0.3]),
+        scale=_FakeTensor([0.5, 0.5, 0.5]),
+    )
+    pose = extract_pose(output)
+    assert pose["rotation"] == pytest.approx([1.0, 0.0, 0.0, 0.0])
+    assert pose["translation"] == pytest.approx([0.1, 0.2, 0.3])
+    assert pose["scale"] == pytest.approx([0.5, 0.5, 0.5])
+
+
+def test_pose_is_all_none_for_multiview():
+    """run_multi_view never attempts layout postprocess. server.py passes
+    None for multiview results -- nulls, not an invented pose."""
+    assert extract_pose(None) == {
+        "rotation": None,
+        "translation": None,
+        "scale": None,
+        "scale_is_metric": None,
+        "iou": None,
+    }
+
+
+def test_pose_is_all_none_for_empty_dict():
+    assert extract_pose({}) == {
+        "rotation": None,
+        "translation": None,
+        "scale": None,
+        "scale_is_metric": None,
+        "iou": None,
+    }
+
+
+def test_pose_iou_minus_one_means_post_optimization_was_skipped():
+    """-1.0 is a real, meaningful sentinel (occlusion check / no-target-points
+    bail in layout_post_optimization): the pose fields are still the
+    unrefined estimate, not garbage, and iou must be surfaced as -1.0
+    verbatim -- not None, not clamped to 0.0."""
+    pose = extract_pose(_full_pose_output(iou=-1.0))
+    assert pose["iou"] == -1.0
+    assert pose["rotation"] == [1.0, 0.0, 0.0, 0.0]
+
+
+def test_pose_iou_absent_means_post_optimization_threw_or_never_ran():
+    """When run_post_optimization[_GS] raises, InferencePipelinePointMap.run
+    catches and logs it without updating ss_return_dict, so `iou` is simply
+    absent while rotation/translation/scale (the pre-optimization pose_decoder
+    estimate) remain. Must come back as iou=None, not fabricated."""
+    output = _full_pose_output()
+    del output["iou"]
+    pose = extract_pose(output)
+    assert pose["iou"] is None
+    assert pose["rotation"] == [1.0, 0.0, 0.0, 0.0]
+    assert pose["translation"] == [0.1, 0.2, 0.3]
+
+
+@pytest.mark.parametrize("bad_iou", [float("nan"), float("inf"), float("-inf")])
+def test_pose_rejects_non_finite_iou(bad_iou):
+    assert extract_pose(_full_pose_output(iou=bad_iou))["iou"] is None
+
+
+def test_pose_rejects_garbage_iou():
+    assert extract_pose(_full_pose_output(iou="not-a-number"))["iou"] is None
+
+
+@pytest.mark.parametrize("bad_flag", [None, "true", 1, 0])
+def test_pose_scale_is_metric_must_be_an_actual_bool(bad_flag):
+    """0/1/"true" look boolish but are not bool; only True/False count."""
+    assert extract_pose(_full_pose_output(scale_is_metric=bad_flag))[
+        "scale_is_metric"
+    ] is None
+
+
+def test_pose_scale_is_metric_false_is_preserved():
+    """False is a legitimate, meaningful value -- must not collapse to None."""
+    assert extract_pose(_full_pose_output(scale_is_metric=False))[
+        "scale_is_metric"
+    ] is False
+
+
+def test_pose_rotation_garbage_becomes_none_independently():
+    """One malformed field must not blank out the rest of the pose."""
+    pose = extract_pose(_full_pose_output(rotation=["not", "numbers"]))
+    assert pose["rotation"] is None
+    assert pose["translation"] == [0.1, 0.2, 0.3]
+    assert pose["scale"] == [0.5, 0.5, 0.5]
+    assert pose["iou"] == 0.87
+
+
+def test_pose_return_has_exactly_the_documented_keys():
+    assert set(extract_pose(_full_pose_output()).keys()) == {
+        "rotation",
+        "translation",
+        "scale",
+        "scale_is_metric",
+        "iou",
+    }

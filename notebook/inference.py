@@ -25,11 +25,16 @@ from copy import deepcopy
 from kaolin.visualize import IpyTurntableVisualizer
 from kaolin.render.camera import Camera, CameraExtrinsics, PinholeIntrinsics
 import builtins
+from loguru import logger
 from pytorch3d.transforms import quaternion_multiply, quaternion_invert
 
 import sam3d_objects  # REMARK(Pierre) : do not remove this import
 from sam3d_objects.pipeline.inference_pipeline_pointmap import InferencePipelinePointMap
 from sam3d_objects.model.backbone.tdfy_dit.utils import render_utils
+from sam3d_objects.pipeline.sampler_env_overrides import (
+    resolve_env_overrides,
+    resolved_settings_for_log,
+)
 
 from sam3d_objects.utils.visualization import SceneVisualizer
 
@@ -88,6 +93,24 @@ class Inference:
         config = OmegaConf.load(config_file)
         config.compile_model = compile
         config.workspace_dir = os.path.dirname(config_file)
+
+        # Let the reconstruction-quality knobs (denoise steps, CFG strength,
+        # sparse-structure downsample distance) be overridden per-process via
+        # SAM3D_* environment variables, so they can be experimented with
+        # without editing code or the checkpoint config. A malformed value
+        # never crashes the server: it is logged as a warning and the knob
+        # falls back to whatever pipeline.yaml / the code default already
+        # says. See sam3d_objects/pipeline/sampler_env_overrides.py.
+        env_result = resolve_env_overrides(os.environ)
+        for warning in env_result.warnings:
+            logger.warning(warning)
+        for key, value in env_result.overrides.items():
+            config[key] = value
+        logger.info(
+            "SAM3D sampler settings (env-overridable via SAM3D_*): {}",
+            resolved_settings_for_log(config),
+        )
+
         check_hydra_safety(config, WHITELIST_FILTERS, BLACKLIST_FILTERS)
         self._pipeline: InferencePipelinePointMap = instantiate(config)
 
