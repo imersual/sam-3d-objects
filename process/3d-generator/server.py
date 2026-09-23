@@ -14,7 +14,6 @@ The poller should POST to /infer instead of calling run.sh.
 import argparse
 import os
 import sys
-import random
 import logging
 from pathlib import Path
 
@@ -45,6 +44,7 @@ from request_utils import (
     extract_pose,
     extract_intrinsics,
     normal_map_sidecar_path,
+    resolve_seed,
 )
 
 # ── logging ──────────────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ def infer(req: InferRequest):
     output_path = Path(req.output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    seed = req.seed if req.seed is not None else random.randint(0, 2**32 - 1)
+    seed = resolve_seed(req.seed)
 
     log.info(f"Inference request | views={len(view_specs)} seed={seed}")
 

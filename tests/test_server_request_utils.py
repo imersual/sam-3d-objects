@@ -15,6 +15,7 @@ from request_utils import (  # noqa: E402
     extract_pose,
     normal_map_sidecar_path,
     normalize_views,
+    resolve_seed,
 )
 
 
@@ -359,3 +360,27 @@ def test_normal_map_sidecar_path_is_always_forward_slash():
     """Production only ever runs on the same (Linux) machine as its caller;
     as_posix() keeps the result deterministic under Windows-run tests too."""
     assert "\\" not in normal_map_sidecar_path("out/mesh.glb")
+
+
+# ------------------------- resolve_seed -------------------------
+
+
+def test_resolve_seed_keeps_a_requested_seed():
+    assert resolve_seed(1234) == 1234
+
+
+def test_default_seed_is_not_pinned_by_a_reseeded_global_random():
+    """Layout post-optimisation calls set_seed(100), which reseeds Python's
+    GLOBAL random on every single-view request. The server drew its default
+    seed from that same generator, so every request after the first on a
+    running server got the same seed, 625644691 -- and retrying a bad
+    reconstruction returned the same bad reconstruction. A default seed must
+    not depend on the global generator's state."""
+    import random
+
+    random.seed(100)
+    first = resolve_seed(None)
+    random.seed(100)
+    second = resolve_seed(None)
+
+    assert first != second

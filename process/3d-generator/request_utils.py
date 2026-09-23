@@ -3,9 +3,26 @@
 Kept free of torch/model imports so they can be unit-tested anywhere.
 """
 import math
+import secrets
 from pathlib import PurePath
 
 MAX_VIEWS = 4
+
+
+def resolve_seed(requested):
+    """The seed to run with: the caller's, else a fresh random 32-bit one.
+
+    The fresh one comes from the OS (secrets), NOT from Python's global
+    `random`. Layout post-optimisation calls set_seed(100)
+    (sam3d_objects/pipeline/layout_post_optimization_utils.py), which reseeds
+    that global generator on every single-view request, so drawing from it
+    gave every request after the first on a running server the same seed,
+    625644691 -- a "retry" of a bad reconstruction returned the same bad
+    reconstruction, and seed variation could not be observed at all.
+    """
+    if requested is not None:
+        return requested
+    return secrets.randbits(32)
 
 
 def normalize_views(image_path, mask_paths, views):
