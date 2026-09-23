@@ -15,6 +15,7 @@ from request_utils import (  # noqa: E402
     extract_pose,
     normal_map_sidecar_path,
     normalize_views,
+    resolve_postprocess_flags,
     resolve_seed,
 )
 
@@ -384,3 +385,47 @@ def test_default_seed_is_not_pinned_by_a_reseeded_global_random():
     second = resolve_seed(None)
 
     assert first != second
+
+
+# ------------------------- resolve_postprocess_flags -------------------------
+
+
+def test_postprocess_flags_default_to_off():
+    flags, warnings = resolve_postprocess_flags({})
+    assert flags == {"with_mesh_postprocess": False, "with_layout_postprocess": False}
+    assert warnings == []
+
+
+@pytest.mark.parametrize("raw", ["0", "false", "FALSE", "no", "off", " off "])
+def test_postprocess_flags_turn_off(raw):
+    flags, warnings = resolve_postprocess_flags(
+        {"SAM3D_MESH_POSTPROCESS": raw, "SAM3D_LAYOUT_POSTPROCESS": raw}
+    )
+    assert flags == {"with_mesh_postprocess": False, "with_layout_postprocess": False}
+    assert warnings == []
+
+
+@pytest.mark.parametrize("raw", ["1", "true", "True", "yes", "on"])
+def test_postprocess_flags_turn_on(raw):
+    flags, _ = resolve_postprocess_flags({"SAM3D_MESH_POSTPROCESS": raw})
+    assert flags["with_mesh_postprocess"] is True
+
+
+def test_postprocess_flags_are_independent():
+    flags, _ = resolve_postprocess_flags({"SAM3D_LAYOUT_POSTPROCESS": "1"})
+    assert flags == {"with_mesh_postprocess": False, "with_layout_postprocess": True}
+
+
+def test_blank_postprocess_flag_keeps_the_default_quietly():
+    flags, warnings = resolve_postprocess_flags({"SAM3D_MESH_POSTPROCESS": "  "})
+    assert flags["with_mesh_postprocess"] is False
+    assert warnings == []
+
+
+def test_malformed_postprocess_flag_warns_and_keeps_the_default():
+    """Runs unattended on the GPU box: a typo must not crash the server, and
+    must not silently flip a stage either."""
+    flags, warnings = resolve_postprocess_flags({"SAM3D_LAYOUT_POSTPROCESS": "nope"})
+    assert flags["with_layout_postprocess"] is False
+    assert len(warnings) == 1
+    assert "SAM3D_LAYOUT_POSTPROCESS" in warnings[0]

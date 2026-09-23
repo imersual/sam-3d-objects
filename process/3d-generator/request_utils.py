@@ -25,6 +25,50 @@ def resolve_seed(requested):
     return secrets.randbits(32)
 
 
+# /infer kwarg -> the env var that switches it. Both default to off; set the
+# env var to 1 to restore what server.py hard-coded before these existed.
+POSTPROCESS_FLAGS = (
+    ("with_mesh_postprocess", "SAM3D_MESH_POSTPROCESS"),
+    ("with_layout_postprocess", "SAM3D_LAYOUT_POSTPROCESS"),
+)
+POSTPROCESS_DEFAULT = False
+_ON = ("1", "true", "yes", "on")
+_OFF = ("0", "false", "no", "off")
+
+
+def resolve_postprocess_flags(env):
+    """Read the mesh/layout postprocess switches from the environment.
+
+    Returns (flags, warnings): flags maps each /infer kwarg to a bool, ready
+    to splat into the Inference call. Unset or blank keeps the default (off).
+    Anything that is not a recognised on/off word also keeps the default and
+    adds a warning -- the server runs unattended, so a typo must neither
+    crash it nor silently flip a stage.
+
+    Mesh postprocess (simplification + hole filling) applies to single-view
+    and multiview. Layout postprocess (pose/scale refinement against the
+    photo) only exists for single-view; multiview never runs it.
+    """
+    flags = {}
+    warnings = []
+    for kwarg, env_var in POSTPROCESS_FLAGS:
+        flags[kwarg] = POSTPROCESS_DEFAULT
+        raw = env.get(env_var)
+        if raw is None or raw.strip() == "":
+            continue
+        value = raw.strip().lower()
+        if value in _ON:
+            flags[kwarg] = True
+        elif value in _OFF:
+            flags[kwarg] = False
+        else:
+            warnings.append(
+                f"Ignoring {env_var}={raw!r} (expected one of "
+                f"{', '.join(_ON + _OFF)}); keeping {kwarg}={POSTPROCESS_DEFAULT}."
+            )
+    return flags, warnings
+
+
 def normalize_views(image_path, mask_paths, views):
     """Normalize an /infer request into a list of (image_path, mask_paths) specs.
 

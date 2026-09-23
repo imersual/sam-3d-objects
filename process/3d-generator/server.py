@@ -44,6 +44,7 @@ from request_utils import (
     extract_pose,
     extract_intrinsics,
     normal_map_sidecar_path,
+    resolve_postprocess_flags,
     resolve_seed,
 )
 
@@ -72,6 +73,14 @@ if torch.cuda.is_available():
              f"Total: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GiB")
 _inference = Inference(config_path, compile=False)
 log.info("Model loaded and ready.")
+
+# SAM3D_MESH_POSTPROCESS / SAM3D_LAYOUT_POSTPROCESS (both default off). Read
+# once here, like the SAM3D_* sampler knobs: flipping one means restarting
+# the server, and the startup log records what every request will run with.
+_postprocess, _postprocess_warnings = resolve_postprocess_flags(os.environ)
+for _warning in _postprocess_warnings:
+    log.warning(_warning)
+log.info(f"Postprocess settings (env-overridable via SAM3D_*): {_postprocess}")
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(title="SAM3D Inference Server")
@@ -150,14 +159,15 @@ def infer(req: InferRequest):
                 images[0],
                 masks[0],
                 seed=seed,
-                with_mesh_postprocess=True,
+                with_mesh_postprocess=_postprocess["with_mesh_postprocess"],
                 with_texture_baking=True,
-                with_layout_postprocess=True,
+                with_layout_postprocess=_postprocess["with_layout_postprocess"],
                 rendering_engine="nvdiffrast",
             )
             # with_layout_postprocess=True solves the object's pose in the
             # source photo's metric camera frame; surface it (see extract_pose)
-            # instead of discarding it as before.
+            # instead of discarding it as before. With it off, the pose and
+            # scale are the pose decoder's unrefined estimate and iou is None.
             pose = extract_pose(output)
             # MoGe-2's normalized camera intrinsics for this same photo (see
             # extract_intrinsics). Additive/informational, like pose.
@@ -171,7 +181,7 @@ def infer(req: InferRequest):
                 images,
                 masks,
                 seed=seed,
-                with_mesh_postprocess=True,
+                with_mesh_postprocess=_postprocess["with_mesh_postprocess"],
                 with_texture_baking=True,
                 rendering_engine="nvdiffrast",
             )
