@@ -25,13 +25,14 @@ def resolve_seed(requested):
     return secrets.randbits(32)
 
 
-# /infer kwarg -> the env var that switches it. Both default to off; set the
-# env var to 1 to restore what server.py hard-coded before these existed.
+# /infer kwarg -> the env var that switches it. Both default to on, which is
+# what server.py hard-coded before these existed; set the env var to 0 to
+# turn a stage off.
 POSTPROCESS_FLAGS = (
     ("with_mesh_postprocess", "SAM3D_MESH_POSTPROCESS"),
     ("with_layout_postprocess", "SAM3D_LAYOUT_POSTPROCESS"),
 )
-POSTPROCESS_DEFAULT = False
+POSTPROCESS_DEFAULT = True
 _ON = ("1", "true", "yes", "on")
 _OFF = ("0", "false", "no", "off")
 
@@ -40,7 +41,7 @@ def resolve_postprocess_flags(env):
     """Read the mesh/layout postprocess switches from the environment.
 
     Returns (flags, warnings): flags maps each /infer kwarg to a bool, ready
-    to splat into the Inference call. Unset or blank keeps the default (off).
+    to splat into the Inference call. Unset or blank keeps the default (on).
     Anything that is not a recognised on/off word also keeps the default and
     adds a warning -- the server runs unattended, so a typo must neither
     crash it nor silently flip a stage.

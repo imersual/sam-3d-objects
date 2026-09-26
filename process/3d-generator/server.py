@@ -74,7 +74,7 @@ if torch.cuda.is_available():
 _inference = Inference(config_path, compile=False)
 log.info("Model loaded and ready.")
 
-# SAM3D_MESH_POSTPROCESS / SAM3D_LAYOUT_POSTPROCESS (both default off). Read
+# SAM3D_MESH_POSTPROCESS / SAM3D_LAYOUT_POSTPROCESS (both default on). Read
 # once here, like the SAM3D_* sampler knobs: flipping one means restarting
 # the server, and the startup log records what every request will run with.
 _postprocess, _postprocess_warnings = resolve_postprocess_flags(os.environ)

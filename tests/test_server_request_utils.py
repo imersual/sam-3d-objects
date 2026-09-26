@@ -390,9 +390,9 @@ def test_default_seed_is_not_pinned_by_a_reseeded_global_random():
 # ------------------------- resolve_postprocess_flags -------------------------
 
 
-def test_postprocess_flags_default_to_off():
+def test_postprocess_flags_default_to_on():
     flags, warnings = resolve_postprocess_flags({})
-    assert flags == {"with_mesh_postprocess": False, "with_layout_postprocess": False}
+    assert flags == {"with_mesh_postprocess": True, "with_layout_postprocess": True}
     assert warnings == []
 
 
@@ -412,13 +412,13 @@ def test_postprocess_flags_turn_on(raw):
 
 
 def test_postprocess_flags_are_independent():
-    flags, _ = resolve_postprocess_flags({"SAM3D_LAYOUT_POSTPROCESS": "1"})
-    assert flags == {"with_mesh_postprocess": False, "with_layout_postprocess": True}
+    flags, _ = resolve_postprocess_flags({"SAM3D_LAYOUT_POSTPROCESS": "0"})
+    assert flags == {"with_mesh_postprocess": True, "with_layout_postprocess": False}
 
 
 def test_blank_postprocess_flag_keeps_the_default_quietly():
     flags, warnings = resolve_postprocess_flags({"SAM3D_MESH_POSTPROCESS": "  "})
-    assert flags["with_mesh_postprocess"] is False
+    assert flags["with_mesh_postprocess"] is True
     assert warnings == []
 
 
@@ -426,6 +426,6 @@ def test_malformed_postprocess_flag_warns_and_keeps_the_default():
     """Runs unattended on the GPU box: a typo must not crash the server, and
     must not silently flip a stage either."""
     flags, warnings = resolve_postprocess_flags({"SAM3D_LAYOUT_POSTPROCESS": "nope"})
-    assert flags["with_layout_postprocess"] is False
+    assert flags["with_layout_postprocess"] is True
     assert len(warnings) == 1
     assert "SAM3D_LAYOUT_POSTPROCESS" in warnings[0]
