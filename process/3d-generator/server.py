@@ -230,7 +230,10 @@ def infer(req: InferRequest):
                 splat_path = str(candidate_splat_path)
                 log.info(f"Exported Gaussian Splat to: {splat_path}")
             except Exception as exc:
-                candidate_splat_path.unlink(missing_ok=True)
+                try:
+                    candidate_splat_path.unlink(missing_ok=True)
+                except OSError as cleanup_exc:
+                    log.warning(f"Failed to remove incomplete Gaussian Splat: {cleanup_exc}")
                 log.warning(f"Failed to export Gaussian Splat (non-fatal): {exc}")
 
 
