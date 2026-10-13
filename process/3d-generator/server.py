@@ -279,6 +279,7 @@ def infer(req: InferRequest):
 
     return {
         "output_path": str(output_path),
+        "splat_path": splat_path,
         "seed": seed,
         "views": len(view_specs),
         # Metres per unit-cube unit, already baked into the exported mesh.
