@@ -221,6 +221,18 @@ def infer(req: InferRequest):
             )
         mesh.export(str(output_path))
         log.info(f"Exported mesh to: {output_path}")
+        
+        splat_path = None
+        if output.get("gs") is not None:
+            try:
+                candidate_splat_path = output_path.with_suffix(".ply")
+                output["gs"].save_ply(str(candidate_splat_path))
+                splat_path = str(candidate_splat_path)
+                log.info(f"Exported Gaussian Splat to: {splat_path}")
+            except Exception as exc:
+                candidate_splat_path.unlink(missing_ok=True)
+                log.warning(f"Failed to export Gaussian Splat (non-fatal): {exc}")
+
 
         # Opt-in (req.return_normal_map): dump MoGe-2's per-pixel normal map
         # next to the GLB and return its path, instead of inlining a
