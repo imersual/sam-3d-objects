@@ -225,7 +225,7 @@ def infer(req: InferRequest):
         splat_path = None
         if output.get("gs") is not None:
             try:
-                candidate_splat_path = output_path.with_suffix(".ply")
+                candidate_splat_path = output_path.with_name(f"{output_path.stem}.splat.ply")
                 output["gs"].save_ply(str(candidate_splat_path))
                 splat_path = str(candidate_splat_path)
                 log.info(f"Exported Gaussian Splat to: {splat_path}")
