@@ -563,7 +563,7 @@ class InferencePipeline:
                 outputs["gaussian"][0],
                 outputs["mesh"][0],
                 # Optional parameters
-                simplify=0.8,  # Ratio of triangles to remove in the simplification process
+                simplify=0.95,  # Ratio of triangles to remove in the simplification process
                 texture_size=2048,  # Size of the texture used for the GLB
                 verbose=False,
                 with_mesh_postprocess=with_mesh_postprocess,
