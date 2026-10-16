@@ -119,7 +119,9 @@ class Inference:
         if mask.shape[:2] != image.shape[:2]:
             mask_pil = Image.fromarray(mask.astype(np.uint8) * 255)
             mask_pil = mask_pil.resize((image.shape[1], image.shape[0]), Image.BILINEAR)
-            mask = np.array(mask_pil) > 0
+            # Midpoint, not nonzero: bilinear resampling blends the edge, and
+            # a nonzero test grew the mask by a pixel all the way round.
+            mask = np.array(mask_pil) > 127
 
         mask = mask.astype(np.uint8) * 255
         mask = mask[..., None]
@@ -417,37 +419,10 @@ def check_hydra_safety(
             to_check.extend(list(node))
 
 
-def load_image(path):
-    image = Image.open(path)
-    image = np.array(image)
-    image = image.astype(np.uint8)
-    return image
-
-
-def load_mask(path):
-    # Return a (H, W) bool mask from any common encoding:
-    #   - L / P (2D grayscale)          -> nonzero pixels
-    #   - RGBA / LA with a VARYING alpha -> alpha is the cutout (e.g. notebook
-    #                                       sample masks: object RGB on transparent bg)
-    #   - RGBA / LA with a CONSTANT alpha (fully opaque) -> alpha carries no
-    #     mask info, so the mask lives in the color channels instead. Blindly
-    #     taking the last channel here would mark the WHOLE image as object and
-    #     make SAM3D reconstruct the entire scene. Fall back to the color
-    #     channels (any non-black pixel) in that case.
-    #   - RGB (no alpha)                -> any non-black pixel
-    mask = load_image(path)
-    if mask.ndim == 2:
-        return mask > 0
-
-    n = mask.shape[-1]
-    if n in (2, 4):  # has an alpha channel (LA or RGBA)
-        alpha = mask[..., -1]
-        if alpha.min() != alpha.max():
-            return alpha > 0
-        color = mask[..., : n - 1]  # opaque alpha -> mask is in the color channels
-    else:
-        color = mask[..., :3]
-    return color.max(axis=-1) > 0
+# Re-exported: server.py, the run_inference scripts and the demos all import
+# these from here. They live in mask_io.py so they can be tested without the
+# GPU stack this module imports.
+from mask_io import load_image, load_mask  # noqa: E402,F401
 
 
 def load_single_mask(folder_path, index=0, extension=".png"):
