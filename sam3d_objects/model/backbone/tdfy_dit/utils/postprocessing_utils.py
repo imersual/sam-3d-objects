@@ -598,7 +598,7 @@ def bake_texture(
 def to_glb(
     app_rep: Union[Strivec, Gaussian],
     mesh: MeshExtractResult,
-    simplify: float = 0.95,
+    simplify: float = 0.9,
     fill_holes: bool = True,
     fill_holes_max_size: float = 0.04,
     texture_size: int = 4096,
