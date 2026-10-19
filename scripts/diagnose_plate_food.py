@@ -28,7 +28,28 @@ their width: a bare plate is ~0.1, the cake on its plate was ~0.24.
 
 When exactly two masks are given, the first is taken to be the food and the
 second its support (the plate), and each depth model's pointmap also reports
-how far the food stands out toward the camera (depth_relief).
+how far the food stands out toward the camera (depth_relief). A --masks
+entry may join several masks with commas, to use them as one.
+
+    --context-ab       instead of all the above: does SAM3D build a dish under
+                       food because it can SEE the bowl? Food in a deep bowl,
+                       reconstructed on its own, comes back sitting on a
+                       complete dish of its own (the bowl photo, 2026-10-19:
+                       19-41% of the food mesh coloured like the bowl, 1.8%
+                       of the food in the photo). SAM3D's input crop keeps
+                       the pixels around the mask, so it sees the bowl whose
+                       front wall hides the food's bottom. This reconstructs
+                       the food three ways, --ab-seeds seeds each:
+                         as_is           the photo as the server sends it
+                         support_hidden  the support's pixels painted over
+                         cutout          everything but the food painted over
+                       Every variant gets the depth model's output for the
+                       UNTOUCHED photo, so only what the model sees changes,
+                       not where the food sits. Each writes a GLB, a preview
+                       PNG (front, side, top, underneath) and how much of the
+                       mesh is coloured like the support, against the same
+                       share of the food in the photo. A variant that works
+                       shows an excess near 0 and no dish in its preview.
 
 Usage, in the SAM3D conda env, on a GPU the server is not using:
 
@@ -38,6 +59,13 @@ Usage, in the SAM3D conda env, on a GPU the server is not using:
         --masks https://.../outputs/<mask task>/object_1.jpg \\
                 https://.../outputs/<mask task>/object_2.jpg \\
         --out /workspace/diagnose/cheesecake --full --per-object
+
+    # The bowl photo: the food (three masks used as one), then the bowl
+    CUDA_VISIBLE_DEVICES=0 python scripts/diagnose_plate_food.py \\
+        --image https://.../outputs/<mask task>/upscaled.jpg \\
+        --masks https://.../object_2.png,https://.../object_3.png,https://.../object_8.png \\
+                https://.../outputs/<mask task>/object_6.png \\
+        --out /workspace/diagnose/bowl --context-ab
 
 Everything lands in --out; summary.txt is the table to read first.
 """
@@ -57,6 +85,19 @@ DEFAULT_SEEDS = (625644691, 0, 1, 2, 3)
 # Voxel height over width. Measured on real outputs: bare plates 0.08-0.11,
 # the cheesecake on its plate 0.24.
 FOOD_HEIGHT_RATIO = 0.17
+
+# --context-ab: what SAM3D is shown in place of what it should not see.
+FILL_COLOURS = {"grey": (128, 128, 128), "black": (0, 0, 0)}
+
+# "Coloured like the support": Lab chroma within this percentile of the
+# support's own spread around its median, and not darker than this
+# percentile of its lightness. Chroma rather than full colour, because a
+# bowl's shading spans a lightness range that bread crumb falls into.
+# Calibrated on production meshes: bowl-photo food 1.8% in the photo and
+# 19-41% in its meshes, the bowl's own mesh 99%, cheesecake 0.0-0.2%, and a
+# blue shrimp plate 80% against 12% for its food.
+SUPPORT_CHROMA_PERCENTILE = 90
+SUPPORT_LIGHTNESS_PERCENTILE = 10
 
 
 def voxel_height_ratio(coords):
@@ -117,18 +158,262 @@ def _fetch(source, out_dir):
     raise RuntimeError(f"could not download {source}: {error}")
 
 
+def mask_groups(entries):
+    """--masks entries as lists of sources: an entry may join several masks
+    with commas, which are then used as one mask."""
+    return [[part for part in entry.split(",") if part] for entry in entries]
+
+
+def background_colour(image, masks):
+    """Median colour of the photo outside every mask: the table or backdrop,
+    the least surprising thing to paint over what SAM3D should not see."""
+    rgb = np.asarray(image)[..., :3]
+    outside = ~np.logical_or.reduce([np.asarray(mask, bool) for mask in masks])
+    if not outside.any():
+        return np.array(FILL_COLOURS["grey"], np.uint8)
+    return np.median(rgb[outside], axis=0).astype(np.uint8)
+
+
+def hide(image, mask, colour):
+    """A copy of the photo with `mask`'s pixels painted `colour`."""
+    painted = np.array(image, copy=True)
+    painted[np.asarray(mask, bool), :3] = colour
+    return painted
+
+
+def context_variants(image, food_mask, support_mask, colour):
+    """The three photos --context-ab reconstructs the food from, by name."""
+    return {
+        "as_is": np.array(image, copy=True),
+        "support_hidden": hide(image, support_mask, colour),
+        "cutout": hide(image, ~np.asarray(food_mask, bool), colour),
+    }
+
+
+def _srgb_to_lab(rgb):
+    """(N, 3) 8-bit sRGB to CIE Lab (D65): L in 0-100, a and b signed."""
+    c = np.asarray(rgb, dtype=np.float64).reshape(-1, 3) / 255.0
+    linear = np.where(c > 0.04045, ((c + 0.055) / 1.055) ** 2.4, c / 12.92)
+    xyz = linear @ np.array([
+        [0.4124, 0.3576, 0.1805],
+        [0.2126, 0.7152, 0.0722],
+        [0.0193, 0.1192, 0.9505],
+    ]).T / np.array([0.95047, 1.0, 1.08883])
+    f = np.where(xyz > (6 / 29) ** 3, np.cbrt(xyz), xyz / (3 * (6 / 29) ** 2) + 4 / 29)
+    return np.stack([116 * f[:, 1] - 16, 500 * (f[:, 0] - f[:, 1]), 200 * (f[:, 1] - f[:, 2])], axis=1)
+
+
+def support_colour_model(support_rgb):
+    """What "coloured like the support" means for one photo, from the
+    support's own pixels: (median chroma, chroma radius, lightness floor)."""
+    lab = _srgb_to_lab(support_rgb)
+    centre = np.median(lab[:, 1:], axis=0)
+    radius = float(np.percentile(np.linalg.norm(lab[:, 1:] - centre, axis=1), SUPPORT_CHROMA_PERCENTILE))
+    floor = float(np.percentile(lab[:, 0], SUPPORT_LIGHTNESS_PERCENTILE))
+    return centre, radius, floor
+
+
+def share_like_support(rgb, model):
+    """Fraction of the (N, 3) colours that are coloured like the support."""
+    lab = _srgb_to_lab(rgb)
+    if not len(lab):
+        return 0.0
+    centre, radius, floor = model
+    like = (np.linalg.norm(lab[:, 1:] - centre, axis=1) <= radius) & (lab[:, 0] >= floor)
+    return float(like.mean())
+
+
+def surface_samples(mesh, count=100_000, seed=0):
+    """(points, colours): `count` points spread evenly over a mesh's surface,
+    and the colour of each, from its texture or vertex colours (8-bit RGB).
+    Area-weighted, so a big flat dish counts for its area, not its vertices."""
+    import trimesh
+
+    rng = np.random.default_rng(seed)
+    triangles = np.asarray(mesh.triangles, dtype=np.float64)
+    area = np.asarray(mesh.area_faces, dtype=np.float64)
+    faces = rng.choice(len(area), size=count, p=area / area.sum())
+    u, v = rng.random(count), rng.random(count)
+    flip = u + v > 1
+    u[flip], v[flip] = 1 - u[flip], 1 - v[flip]
+    weights = np.stack([1 - u - v, u, v], axis=1)
+    points = (triangles[faces] * weights[:, :, None]).sum(axis=1)
+
+    colours = np.full((count, 3), 200, np.uint8)
+    visual = mesh.visual
+    corners = np.asarray(mesh.faces)[faces]
+    if isinstance(visual, trimesh.visual.texture.TextureVisuals) and visual.uv is not None:
+        material = visual.material
+        texture = getattr(material, "baseColorTexture", None) or getattr(material, "image", None)
+        if texture is not None:
+            pixels = np.asarray(texture.convert("RGB"))
+            uv = (np.asarray(visual.uv)[corners] * weights[:, :, None]).sum(axis=1)
+            height, width = pixels.shape[:2]
+            x = np.clip(((uv[:, 0] % 1.0) * (width - 1)).round().astype(int), 0, width - 1)
+            y = np.clip(((1.0 - uv[:, 1] % 1.0) * (height - 1)).round().astype(int), 0, height - 1)
+            colours = pixels[y, x]
+    elif getattr(visual, "kind", None) == "vertex":
+        vertex_colours = np.asarray(visual.vertex_colors)[:, :3].astype(np.float64)
+        colours = (vertex_colours[corners] * weights[:, :, None]).sum(axis=1).round().astype(np.uint8)
+    return points, colours
+
+
+# (name, azimuth, elevation) in degrees, glTF frame: Y up, front toward +Z.
+PREVIEW_VIEWS = (("front", 0, 30), ("side", 90, 10), ("top", 0, 85), ("underneath", 0, -45))
+
+
+def preview_sheet(mesh, path, size=320, samples=150_000):
+    """Write a PNG of a reconstruction from the front, the side, the top and
+    underneath, side by side: a dish under the food shows from underneath."""
+    from PIL import Image
+
+    points, colours = surface_samples(mesh, samples)
+    centre = (points.min(axis=0) + points.max(axis=0)) / 2
+    half = max(np.linalg.norm(points.max(axis=0) - points.min(axis=0)) / 2, 1e-9) * 1.05
+    tiles = []
+    for _, azimuth, elevation in PREVIEW_VIEWS:
+        a, e = np.radians(azimuth), np.radians(elevation)
+        toward_eye = np.array([np.sin(a) * np.cos(e), np.sin(e), np.cos(a) * np.cos(e)])
+        right = np.cross([0.0, 1.0, 0.0], toward_eye)
+        if np.linalg.norm(right) < 1e-6:
+            right = np.array([1.0, 0.0, 0.0])
+        right /= np.linalg.norm(right)
+        up = np.cross(toward_eye, right)
+        rel = points - centre
+        px = ((rel @ right / half + 1) / 2 * (size - 1)).round().astype(int)
+        py = ((1 - (rel @ up / half + 1) / 2) * (size - 1)).round().astype(int)
+        nearness = rel @ toward_eye
+        # Each point covers 2x2 pixels; every pixel shows its nearest point.
+        offsets = [(dx, dy) for dx in (0, 1) for dy in (0, 1)]
+        px = np.concatenate([px + dx for dx, _ in offsets])
+        py = np.concatenate([py + dy for _, dy in offsets])
+        near = np.tile(nearness, len(offsets))
+        rgb = np.tile(colours, (len(offsets), 1))
+        inside = (px >= 0) & (px < size) & (py >= 0) & (py < size)
+        index, near, rgb = (py * size + px)[inside], near[inside], rgb[inside]
+        order = np.lexsort((-near, index))
+        _, first = np.unique(index[order], return_index=True)
+        tile = np.full((size * size, 3), 235, np.uint8)
+        tile[index[order][first]] = rgb[order][first]
+        tiles.append(tile.reshape(size, size, 3))
+    Image.fromarray(np.hstack(tiles)).save(path)
+
+
+def ab_summary_lines(rows, photo_share):
+    """The --context-ab table: one line per reconstruction."""
+    lines = [
+        f"food pixels in the photo coloured like the support: {photo_share * 100:.1f}%",
+        "",
+        f"{'variant':16s} {'seed':>10s} {'like support':>13s} {'excess':>8s} {'height/width':>13s}  glb",
+    ]
+    for row in rows:
+        lines.append(
+            f"{row['variant']:16s} {row['seed']:>10d} {row['like_support'] * 100:>12.1f}% "
+            f"{(row['like_support'] - photo_share) * 100:>+8.1f} {row['height_ratio']:>13.3f}  {row['glb']}"
+        )
+    return lines
+
+
 def _parse_args(argv):
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--image", required=True, help="photo: path or URL")
-    parser.add_argument("--masks", required=True, nargs="+", help="masks: paths or URLs")
+    parser.add_argument(
+        "--masks", required=True, nargs="+",
+        help="masks: paths or URLs; join several with commas to use them as one",
+    )
     parser.add_argument("--out", required=True, help="output directory")
     parser.add_argument("--seeds", type=int, nargs="+", default=list(DEFAULT_SEEDS))
     parser.add_argument("--tag", default="hf", help="checkpoint tag under checkpoints/")
     parser.add_argument("--full", action="store_true", help="also run full merged reconstructions")
     parser.add_argument("--per-object", action="store_true", help="also reconstruct each mask alone")
+    parser.add_argument(
+        "--context-ab", action="store_true",
+        help="only the A/B: the food (first mask) as is, with its support (second mask) "
+        "painted over, and as a cutout",
+    )
+    parser.add_argument("--ab-seeds", type=int, default=2, help="seeds per --context-ab variant, from --seeds")
+    parser.add_argument(
+        "--fill", choices=("background", "grey", "black"), default="background",
+        help="what --context-ab paints with: the photo's median background colour, grey or black",
+    )
     return parser.parse_args(argv)
+
+
+def _run_context_ab(args, inference, pipeline, image, food, support, out_dir):
+    """--context-ab: the food three ways, see the module docstring."""
+    import torch
+    from PIL import Image
+    from request_utils import extract_metric_scale, resolve_postprocess_flags
+
+    flags, warnings = resolve_postprocess_flags(os.environ)  # the server's own switches
+    for warning in warnings:
+        print(warning, flush=True)
+    food, support = (_resized(mask, np.asarray(image).shape[:2]) for mask in (food, support))
+    colour = (
+        background_colour(image, [food, support]) if args.fill == "background"
+        else np.array(FILL_COLOURS[args.fill], np.uint8)
+    )
+    rgb = np.asarray(image)[..., :3]
+    model = support_colour_model(rgb[support])
+    photo_share = share_like_support(rgb[food], model)
+
+    # The depth model's output for the untouched photo, handed to every
+    # variant: painting pixels must change what SAM3D sees, not where it
+    # thinks the food is. Only the point colours follow the variant's photo.
+    with pipeline.device:
+        untouched = pipeline.compute_pointmap(inference.merge_mask_to_rgba(image, food))
+    compute_pointmap = pipeline.compute_pointmap
+
+    def untouched_depth(rgba, pointmap=None):
+        depth = {key: (value.clone() if torch.is_tensor(value) else value) for key, value in untouched.items()}
+        depth["pts_color"] = torch.from_numpy(pipeline.image_to_float(rgba)).permute(2, 0, 1).contiguous()[:3]
+        return depth
+
+    rows = []
+    pipeline.compute_pointmap = untouched_depth
+    try:
+        for name, picture in context_variants(image, food, support, colour).items():
+            Image.fromarray(np.asarray(picture)[..., :3]).save(out_dir / f"ab_input_{name}.png")
+            for seed in args.seeds[: args.ab_seeds]:
+                started = time.time()
+                output = inference(
+                    picture, food, seed=seed,
+                    with_mesh_postprocess=flags["with_mesh_postprocess"],
+                    with_texture_baking=True,
+                    with_layout_postprocess=flags["with_layout_postprocess"],
+                    rendering_engine="nvdiffrast",
+                )
+                mesh = output["glb"]
+                metric_scale = extract_metric_scale(output)
+                if metric_scale is not None:
+                    mesh.apply_scale(metric_scale)  # exactly as server.py exports it
+                stem = f"ab_{name}_seed{seed}"
+                mesh.export(str(out_dir / f"{stem}.glb"))
+                preview_sheet(mesh, out_dir / f"{stem}.png")
+                _, colours = surface_samples(mesh)
+                extents = mesh.extents  # glTF, y-up
+                rows.append({
+                    "variant": name, "seed": seed, "glb": f"{stem}.glb", "preview": f"{stem}.png",
+                    "like_support": round(share_like_support(colours, model), 4),
+                    "height_ratio": round(float(extents[1] / max(extents[0], extents[2])), 4),
+                    "seconds": round(time.time() - started, 1),
+                })
+                print(json.dumps(rows[-1]), flush=True)
+                torch.cuda.empty_cache()
+    finally:
+        pipeline.compute_pointmap = compute_pointmap
+
+    summary = {
+        "image": args.image, "masks": args.masks, "fill": args.fill, "fill_colour": colour.tolist(),
+        "postprocess": flags, "photo_like_support": round(photo_share, 4), "context_ab": rows,
+    }
+    (out_dir / "summary.json").write_text(json.dumps(summary, indent=1))
+    lines = ab_summary_lines(rows, photo_share)
+    (out_dir / "summary.txt").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+    print(f"\nWrote {out_dir}")
 
 
 def main(argv=None):
@@ -161,13 +446,21 @@ def main(argv=None):
             return output
 
     image = load_image(_fetch(args.image, out_dir))
-    masks = [load_mask(_fetch(m, out_dir)) for m in args.masks]
+    masks = [
+        np.logical_or.reduce([load_mask(_fetch(m, out_dir)) for m in group])
+        for group in mask_groups(args.masks)
+    ]
     merged = np.logical_or.reduce(masks)
 
     config = root / "checkpoints" / args.tag / "pipeline.yaml"
     print(f"Loading SAM3D from {config} ...", flush=True)
     inference = Inference(str(config), compile=False)
     pipeline = inference._pipeline
+    if args.context_ab:
+        if len(masks) != 2:
+            raise SystemExit("--context-ab needs two --masks: the food, then what it sits on")
+        _run_context_ab(args, inference, pipeline, image, masks[0], masks[1], out_dir)
+        return
     production = pipeline.depth_model
     moge2 = production if isinstance(production, MoGe2) else instantiate(
         OmegaConf.create(DEPTH_MODELS["moge2"])
